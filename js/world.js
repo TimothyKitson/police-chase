@@ -2,14 +2,38 @@ import * as THREE from '../vendor/three.module.js';
 import { WORLD, COIN_VALUE } from './config.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const rand = (a, b) => a + Math.random() * (b - a);
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function worldSeed() {
+  const q = new URLSearchParams(location.search).get('seed');
+  if (q !== null) {
+    const n = Number(q);
+    if (Number.isFinite(n)) return Math.floor(n);
+    let h = 2166136261;
+    for (let i = 0; i < q.length; i++) {
+      h ^= q.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  return WORLD.seed;
+}
 
 const WIN_COLS = 6;
 const WIN_ROWS = 12;
 const TILE_U = 18;
 const TILE_V = 40;
 
-function facadeTextures() {
+function facadeTextures(rnd) {
   const w = 192, h = 384;
   const base = document.createElement('canvas');
   base.width = w; base.height = h;
@@ -29,11 +53,11 @@ function facadeTextures() {
     for (let c = 0; c < WIN_COLS; c++) {
       const x = c * cw + mx, y = r * ch + my;
       const ww = cw - mx * 2, wh = ch - my * 2;
-      const lit = Math.random() < 0.4;
+      const lit = rnd() < 0.4;
       bc.fillStyle = lit ? '#ffdd9c' : '#151b26';
       bc.fillRect(x, y, ww, wh);
       if (lit) {
-        gc.fillStyle = Math.random() < 0.22 ? '#7fd0ff' : '#ffc978';
+        gc.fillStyle = rnd() < 0.22 ? '#7fd0ff' : '#ffc978';
         gc.fillRect(x, y, ww, wh);
       }
       bc.fillStyle = 'rgba(0,0,0,.22)';
@@ -54,7 +78,7 @@ function facadeTextures() {
   return { facade: t1, glow: t2 };
 }
 
-function skyTexture() {
+function skyTexture(rnd) {
   const c = document.createElement('canvas');
   c.width = 16; c.height = 256;
   const ctx = c.getContext('2d');
@@ -69,7 +93,7 @@ function skyTexture() {
   ctx.fillRect(0, 0, 16, 256);
   ctx.fillStyle = 'rgba(255,255,255,.85)';
   for (let i = 0; i < 60; i++) {
-    ctx.fillRect(Math.random() * 16, Math.random() * 90, 1, 1);
+    ctx.fillRect(rnd() * 16, rnd() * 90, 1, 1);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -110,8 +134,11 @@ class MeshBuilder {
 }
 
 export class World {
-  constructor(scene) {
+  constructor(scene, seed = worldSeed()) {
     this.scene = scene;
+    this.seed = seed;
+    this.rng = mulberry32(seed);
+    this.rand = (a, b) => a + this.rng() * (b - a);
     this.N = WORLD.blocks;
     this.B = WORLD.blockSize;
     this.RW = WORLD.roadWidth;
@@ -148,8 +175,10 @@ export class World {
   build() {
     const { N, B, RW, half, extent } = this;
     const scene = this.scene;
+    const rnd = this.rng;
+    const rand = this.rand;
 
-    scene.background = skyTexture();
+    scene.background = skyTexture(rnd);
     scene.fog = new THREE.Fog(0x1d2740, 130, 640);
 
     const ground = new THREE.Mesh(
@@ -206,12 +235,12 @@ export class World {
     const lots = [];
     for (let i = 0; i < N; i++) {
       for (let j = 0; j < N; j++) {
-        if (Math.random() < 0.08) continue;
+        if (rnd() < 0.08) continue;
         const bx0 = -half + i * B + RW / 2;
         const bz0 = -half + j * B + RW / 2;
         const size = B - RW;
-        const splitX = Math.random() < 0.55;
-        const parts = Math.random() < 0.45 ? 2 : 1;
+        const splitX = rnd() < 0.55;
+        const parts = rnd() < 0.45 ? 2 : 1;
         for (let p = 0; p < parts; p++) {
           const frac = parts === 1 ? 1 : (p === 0 ? 0.52 : 0.48);
           const offFrac = parts === 1 ? 0 : (p === 0 ? 0 : 0.52);
@@ -226,7 +255,7 @@ export class World {
           const edge = Math.min(i, j, N - 1 - i, N - 1 - j);
           const centerBias = 1 - edge / (N / 2);
           const h = clamp(
-            WORLD.minBuildingHeight + Math.pow(Math.random(), 1.7) * WORLD.maxBuildingHeight * (0.45 + centerBias * 0.9),
+            WORLD.minBuildingHeight + Math.pow(rnd(), 1.7) * WORLD.maxBuildingHeight * (0.45 + centerBias * 0.9),
             WORLD.minBuildingHeight, WORLD.maxBuildingHeight * 1.4
           );
           lots.push({ cx: x0 + sx / 2, cz: z0 + sz / 2, w, d, h });
@@ -270,7 +299,7 @@ export class World {
       });
     }
 
-    const tex = facadeTextures();
+    const tex = facadeTextures(rnd);
     const wallMesh = new THREE.Mesh(walls.geometry(), new THREE.MeshStandardMaterial({
       map: tex.facade,
       emissiveMap: tex.glow,
@@ -361,26 +390,27 @@ export class World {
     this.coinScale = new THREE.Vector3(1, 1, 1);
     this.coinPos = new THREE.Vector3();
     for (let i = 0; i < n; i++) {
-      const p = this.randomRoadPoint();
+      const p = this.randomRoadPoint(null, 0, this.rng);
       this.coins.push({ x: p.x, z: p.z, y: 1.5, active: true, respawn: 0 });
     }
     this.coinSpin = 0;
     this.updateCoins(0);
   }
 
-  randomRoadPoint(avoid, minDist = 0) {
+  randomRoadPoint(avoid, minDist = 0, rnd = Math.random) {
     const { N, B, half } = this;
+    const range = (a, b) => a + rnd() * (b - a);
     for (let tries = 0; tries < 40; tries++) {
-      const axis = Math.random() < 0.5;
-      const line = -half + Math.floor(rand(0, N + 1)) * B;
-      const along = rand(-half + 8, half - 8);
-      const off = rand(-this.RW * 0.26, this.RW * 0.26);
+      const axis = rnd() < 0.5;
+      const line = -half + Math.floor(range(0, N + 1)) * B;
+      const along = range(-half + 8, half - 8);
+      const off = range(-this.RW * 0.26, this.RW * 0.26);
       const x = axis ? line + off : along;
       const z = axis ? along : line + off;
       if (avoid && minDist > 0 && Math.hypot(x - avoid.x, z - avoid.z) < minDist) continue;
       return {
         x, z,
-        yaw: axis ? (Math.random() < 0.5 ? 0 : Math.PI) : (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2)
+        yaw: axis ? (rnd() < 0.5 ? 0 : Math.PI) : (rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2)
       };
     }
     return { x: 0, z: 0, yaw: 0 };

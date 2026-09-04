@@ -5,6 +5,7 @@ export const CHEAT_COINS = 1000;
 export const COIN_VALUE = 25;
 
 export const WORLD = {
+  seed: 730421,
   blocks: 13,
   blockSize: 74,
   roadWidth: 17,

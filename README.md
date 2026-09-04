@@ -23,6 +23,13 @@ No build step, no bundler, no external requests at runtime. Drop it on any stati
 - <kbd>E</kbd> — toggle fly · <kbd>R</kbd> — +1000 coins · <kbd>F</kbd> — reset car
 - <kbd>C</kbd> — camera · <kbd>M</kbd> — mute · <kbd>Esc</kbd> — pause
 
+## The map
+
+The city is generated from a fixed seed (`WORLD.seed` in `js/config.js`), so every
+load and every player gets the same streets, the same skyline and the same coin
+placements — the layout is learnable. Append `?seed=<number-or-word>` to the URL to
+generate a different city; the same seed always rebuilds the same one.
+
 ## Earning coins the honest way
 
 Coin rings around the city (25 each), drift chains that pay per second, and a heat
