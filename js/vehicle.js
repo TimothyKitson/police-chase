@@ -32,6 +32,8 @@ export class Vehicle {
     this.pitch = 0;
     this.wheelSpin = 0;
     this.steerVisual = 0;
+    this.lastFloor = 0;
+    this.lastAirTime = 0;
     this.distance = 0;
     this.stuckTimer = 0;
   }
@@ -43,8 +45,10 @@ export class Vehicle {
   forward(out = tmpF) { return out.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)); }
   right(out = tmpR) { return out.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)); }
 
-  placeAt(x, z, yaw = 0) {
-    this.pos.set(x, 0, z);
+  placeAt(x, z, yaw = 0, y = 0) {
+    this.pos.set(x, y, z);
+    this.lastFloor = y;
+    this.lastAirTime = 0;
     this.yaw = yaw;
     this.vel.set(0, 0, 0);
     this.vy = 0;
@@ -144,22 +148,25 @@ export class Vehicle {
       this.onGround = false;
       this.airTime = 0;
     } else if (this.pos.y <= floor + 0.001) {
+      const climb = dt > 0 ? (floor - this.lastFloor) / dt : 0;
       this.pos.y = floor;
       if (this.vy < -9 && this.airTime > 0.25) this.lastImpact = Math.min(1, -this.vy / 40);
-      this.vy = 0;
+      if (this.airTime > 0.2) this.lastAirTime = this.airTime;
+      this.vy = climb > 1 && climb < 40 ? Math.min(climb * 1.25, 28) : 0;
       this.onGround = true;
       this.airTime = 0;
     } else {
       this.onGround = false;
       this.airTime += dt;
     }
+    this.lastFloor = floor;
 
     const rollTarget = this.flying
       ? clamp(-c.steer * 0.55, -0.6, 0.6)
       : clamp(-this.latSpeed * 0.02 - c.steer * Math.min(0.16, Math.abs(fs) / 260), -0.32, 0.32);
     const pitchTarget = this.flying
       ? clamp(-this.vy * 0.012 - (c.throttle ? 0.06 : 0), -0.35, 0.35)
-      : clamp((c.brake ? 0.045 : 0) - (c.throttle ? 0.03 : 0), -0.1, 0.1);
+      : clamp((c.brake ? 0.045 : 0) - (c.throttle ? 0.03 : 0) - clamp(this.vy * 0.012, -0.22, 0.22), -0.3, 0.3);
     this.roll += (rollTarget - this.roll) * damp(7, dt);
     this.pitch += (pitchTarget - this.pitch) * damp(6, dt);
 

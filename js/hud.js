@@ -60,10 +60,11 @@ export class Hud {
 
     this.speedValue.textContent = Math.round(Math.abs(s.speedKmh));
     const ratio = Math.min(1, Math.abs(s.speedKmh) / Math.max(40, s.maxKmh));
+    const gearRatio = ratio;
     this.gearText.textContent = s.flying ? 'FLY'
       : s.reverse ? 'R'
       : Math.abs(s.speedKmh) < 3 ? 'N'
-      : String(Math.min(6, 1 + Math.floor(ratio * 5.6)));
+      : String(Math.min(6, 1 + Math.floor(gearRatio * 5.6)));
 
     this.chipFly.textContent = s.flying ? 'E · FLYING' : 'E · FLY OFF';
     this.chipFly.classList.toggle('on', s.flying);
@@ -73,7 +74,8 @@ export class Hud {
     this.drawSpeedo(ratio, s.flying);
   }
 
-  drawSpeedo(ratio, flying) {
+  drawSpeedo(rawRatio, flying) {
+    const ratio = Math.max(0.001, Math.min(1, rawRatio));
     const ctx = this.ctx;
     const w = this.canvas.width, h = this.canvas.height;
     ctx.clearRect(0, 0, w, h);

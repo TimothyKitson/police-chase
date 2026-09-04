@@ -25,15 +25,32 @@ No build step, no bundler, no external requests at runtime. Drop it on any stati
 
 ## The map
 
-The city is generated from a fixed seed (`WORLD.seed` in `js/config.js`), so every
-load and every player gets the same streets, the same skyline and the same coin
-placements — the layout is learnable. Append `?seed=<number-or-word>` to the URL to
-generate a different city; the same seed always rebuilds the same one.
+One fixed city, generated from a seed (`WORLD.seed` in `js/config.js`) — same streets,
+skyline, hazards and coin placements for every player on every load, so the layout is
+learnable. Append `?seed=<number-or-word>` to the URL to roll a different city; the same
+seed always rebuilds the same one.
+
+Built to match the shape of the original's map rather than a tidy grid:
+
+- **Twisted street network** — irregular block spacing, wide arterials, narrow downtown
+  side streets, and alley shortcuts carved through blocks.
+- **Districts** — a tower-heavy downtown, midtown mid-rise, warehouse/freight docks with
+  stacked shipping containers, and green park blocks.
+- **Civilian traffic** — ~130 cars driving the lane network, queueing at junctions and
+  bunching up downtown. They route around roadblocks; you and the police do not.
+- **Roadblocks** — striped barriers that close streets. Hit one above ~30 km/h and you
+  smash through; crawl into it and it stops you. More get thrown down ahead of you as
+  your wanted level climbs.
+- **Speed traps** — camera posts that call in units when you blast past.
+- **The river and harbour** — a river splits the city with only four bridges across it,
+  plus a harbour bay in the docks. Drive in and you sink (free rescue, it's a mod).
+- **Ramps** — yellow-tipped kickers on the arterials and big ones in the yards and parks,
+  with real launch physics and an air-time payout.
 
 ## Earning coins the honest way
 
-Coin rings around the city (25 each), drift chains that pay per second, and a heat
-bounty every 10 seconds scaled to your wanted level.
+Coin rings around the city (25 each), drift chains that pay per second, ramp air time,
+and a heat bounty every 10 seconds scaled to your wanted level.
 
 Cars: City Cruiser (free), Blacktop V8 (6,500), Nightline GT (24,000), Admin Prototype (100,000).
 Progress, purchases and admin tuning persist in `localStorage`.
@@ -60,7 +77,9 @@ index.html          markup, HUD and screens
 css/style.css       all styling
 js/main.js          entry point
 js/game.js          renderer, game loop, heat/bust/economy logic
-js/world.js         procedural city, collision grid, coins
+js/world.js         city generation, street network, water, bridges, ramps, collision grid
+js/traffic.js       civilian traffic on the lane network
+js/hazards.js       roadblocks and speed traps
 js/vehicle.js       arcade car + flight physics
 js/carmesh.js       car model builder
 js/police.js        pursuit AI

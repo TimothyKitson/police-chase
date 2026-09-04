@@ -60,6 +60,8 @@ button{font-family:inherit;cursor:pointer}
 .mini-legend b{color:var(--cyan)}
 .mini-legend .cop{color:var(--red)}
 .mini-legend .coin{color:var(--gold)}
+.mini-legend .ramp{color:#ffc43c}
+.mini-legend .block{color:#ff8a3d}
 
 .hud-bottom{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px}
 #speedo{position:relative;width:260px;height:150px}
@@ -233,6 +235,8 @@ button{font-family:inherit;cursor:pointer}
 .help-card.mod h3{color:var(--mag)}
 .help-card ul{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--muted)}
 .help-card p{font-size:12.5px;color:var(--muted);line-height:1.55}
+.help-card li b{color:var(--text)}
+.help-card code{font-family:var(--mono);font-size:.92em;color:var(--cyan)}
 
 #loading{
   position:fixed;inset:0;z-index:60;display:grid;place-content:center;justify-items:center;gap:16px;

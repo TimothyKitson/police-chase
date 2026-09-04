@@ -13,15 +13,23 @@ class Input {
     this.state = { up: 0, down: 0, left: 0, right: 0, handbrake: 0, boost: 0, descend: 0 };
     this.pressHandlers = new Map();
     this.enabled = true;
-    this.blockedTags = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+    this.blockedTags = new Set(['TEXTAREA', 'SELECT']);
+    this.blockedInputTypes = new Set(['text', 'number', 'search', 'email', 'password', 'tel', 'url']);
 
     window.addEventListener('keydown', e => this.onKey(e, 1));
     window.addEventListener('keyup', e => this.onKey(e, 0));
     window.addEventListener('blur', () => this.releaseAll());
   }
 
+  typing() {
+    const el = document.activeElement;
+    if (!el) return false;
+    if (this.blockedTags.has(el.tagName)) return true;
+    return el.tagName === 'INPUT' && this.blockedInputTypes.has(el.type);
+  }
+
   onKey(e, down) {
-    if (this.blockedTags.has(document.activeElement?.tagName)) return;
+    if (this.typing()) return;
     const action = MAP[e.code];
     if (action) {
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();

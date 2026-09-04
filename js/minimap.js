@@ -6,7 +6,7 @@ export class Minimap {
     this.range = 190;
   }
 
-  draw(player, police) {
+  draw(player, police, traffic, hazards) {
     const ctx = this.ctx;
     const { width: w, height: h } = this.canvas;
     const cx = w / 2, cy = h / 2;
@@ -25,24 +25,41 @@ export class Minimap {
     ctx.translate(cx, cy);
     ctx.rotate(-player.yaw);
 
-    const B = world.B, half = world.half;
-    ctx.strokeStyle = 'rgba(120,170,210,.32)';
-    ctx.lineWidth = 3;
-    const first = Math.floor((player.pos.x - this.range + half) / B);
-    const last = Math.ceil((player.pos.x + this.range + half) / B);
-    for (let i = first; i <= last; i++) {
-      const lx = (-half + i * B - player.pos.x) * scale;
+    ctx.fillStyle = 'rgba(32,96,132,.55)';
+    for (const wt of world.water) {
+      ctx.fillRect(
+        (wt.minX - player.pos.x) * scale,
+        (wt.minZ - player.pos.z) * scale,
+        (wt.maxX - wt.minX) * scale,
+        (wt.maxZ - wt.minZ) * scale
+      );
+    }
+
+    for (let i = 0; i < world.xs.length; i++) {
+      const dx = world.xs[i] - player.pos.x;
+      if (Math.abs(dx) > this.range + 20) continue;
+      ctx.strokeStyle = world.wx[i] >= 20 ? 'rgba(150,200,235,.5)' : 'rgba(120,170,210,.3)';
+      ctx.lineWidth = world.wx[i] >= 20 ? 4 : 2.5;
       ctx.beginPath();
-      ctx.moveTo(lx, -h); ctx.lineTo(lx, h);
+      ctx.moveTo(dx * scale, -h); ctx.lineTo(dx * scale, h);
       ctx.stroke();
     }
-    const firstZ = Math.floor((player.pos.z - this.range + half) / B);
-    const lastZ = Math.ceil((player.pos.z + this.range + half) / B);
-    for (let j = firstZ; j <= lastZ; j++) {
-      const lz = (-half + j * B - player.pos.z) * scale;
+    for (let j = 0; j < world.zs.length; j++) {
+      const dz = world.zs[j] - player.pos.z;
+      if (Math.abs(dz) > this.range + 20) continue;
+      ctx.strokeStyle = world.wz[j] >= 20 ? 'rgba(150,200,235,.5)' : 'rgba(120,170,210,.3)';
+      ctx.lineWidth = world.wz[j] >= 20 ? 4 : 2.5;
       ctx.beginPath();
-      ctx.moveTo(-w, lz); ctx.lineTo(w, lz);
+      ctx.moveTo(-w, dz * scale); ctx.lineTo(w, dz * scale);
       ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(255,196,60,.85)';
+    for (const r of world.ramps) {
+      const dx = (r.x - player.pos.x) * scale;
+      const dz = (r.z - player.pos.z) * scale;
+      if (Math.abs(dx) > w || Math.abs(dz) > h) continue;
+      ctx.fillRect(dx - 2.5, dz - 2.5, 5, 5);
     }
 
     ctx.fillStyle = '#ffcc3d';
@@ -54,6 +71,37 @@ export class Minimap {
       ctx.beginPath();
       ctx.arc(dx * scale, dz * scale, 2, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    if (traffic) {
+      ctx.fillStyle = 'rgba(190,200,215,.7)';
+      for (const car of traffic.cars) {
+        if (!car.active) continue;
+        const dx = (car.x - player.pos.x) * scale;
+        const dz = (car.z - player.pos.z) * scale;
+        if (Math.abs(dx) > w || Math.abs(dz) > h) continue;
+        ctx.fillRect(dx - 1.5, dz - 1.5, 3, 3);
+      }
+    }
+
+    if (hazards) {
+      for (const b of hazards.blocks) {
+        if (!b.barriers.length) continue;
+        const dx = (b.x - player.pos.x) * scale;
+        const dz = (b.z - player.pos.z) * scale;
+        if (Math.abs(dx) > w || Math.abs(dz) > h) continue;
+        ctx.fillStyle = '#ff8a3d';
+        ctx.fillRect(dx - 3.5, dz - 3.5, 7, 7);
+      }
+      ctx.fillStyle = '#5aa9ff';
+      for (const t of hazards.traps) {
+        const dx = (t.x - player.pos.x) * scale;
+        const dz = (t.z - player.pos.z) * scale;
+        if (Math.abs(dx) > w || Math.abs(dz) > h) continue;
+        ctx.beginPath();
+        ctx.arc(dx, dz, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     for (const u of police) {

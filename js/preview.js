@@ -16,10 +16,10 @@ export class CarPreview {
     this.camera.lookAt(0, 0.85, 0);
 
     this.scene.add(new THREE.HemisphereLight(0x8fb6ff, 0x14181f, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 2.1);
+    const key = new THREE.DirectionalLight(0xffffff, 2.5);
     key.position.set(5, 8, 6);
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0x37e6ff, 0.75);
+    const fill = new THREE.DirectionalLight(0x37e6ff, 0.5);
     fill.position.set(-6, 3, -5);
     this.scene.add(fill);
     const rim = new THREE.PointLight(0xff3ea5, 11, 16);
@@ -29,7 +29,7 @@ export class CarPreview {
     const floorGeo = new THREE.CircleGeometry(7.5, 48);
     floorGeo.rotateX(-Math.PI / 2);
     this.floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({
-      color: 0x0e131b, roughness: 0.55, metalness: 0.35
+      color: 0x0b0f16, roughness: 0.62, metalness: 0.22
     }));
     this.scene.add(this.floor);
 
@@ -86,7 +86,7 @@ export class CarPreview {
     }
     this.car = buildCar(spec, {});
     this.car.group.traverse(o => { if (o.isMesh) o.castShadow = false; });
-    if (this.car.glowMesh) this.car.glowMesh.material.opacity = 0.32;
+    if (this.car.glowMesh) this.car.glowMesh.material.opacity = 0.42;
     this.turn.add(this.car.group);
     this.sig = sig;
     this.ring.material.color.set(spec.glow ? (spec.glowColor ?? 0x37e6ff) : 0x37e6ff);

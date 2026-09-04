@@ -37,10 +37,26 @@ class Store {
   constructor() {
     this.data = load();
     this.listeners = new Set();
+    this.dirty = false;
+    this.timer = null;
+    const flush = () => this.flush();
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
   }
 
-  save() {
+  flush() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    if (!this.dirty) return;
+    this.dirty = false;
     try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { void e; }
+  }
+
+  save(immediate = false) {
+    this.dirty = true;
+    if (immediate) this.flush();
+    else if (!this.timer) this.timer = setTimeout(() => this.flush(), 450);
     this.listeners.forEach(fn => fn(this.data));
   }
 
@@ -64,14 +80,14 @@ class Store {
     if (this.data.coins < car.price) return false;
     this.data.coins -= car.price;
     this.data.owned.push(id);
-    this.save();
+    this.save(true);
     return true;
   }
 
   select(id) {
     if (!this.owns(id)) return false;
     this.data.selected = id;
-    this.save();
+    this.save(true);
     return true;
   }
 
@@ -88,12 +104,12 @@ class Store {
 
   setAdminAll(values) {
     this.data.admin = { ...ADMIN_DEFAULTS, ...values };
-    this.save();
+    this.save(true);
   }
 
   resetAdmin() {
     this.data.admin = { ...ADMIN_DEFAULTS };
-    this.save();
+    this.save(true);
   }
 
   recordRun(run) {

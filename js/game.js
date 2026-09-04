@@ -5,6 +5,8 @@ import { input } from './input.js';
 import { World } from './world.js';
 import { Vehicle } from './vehicle.js';
 import { PoliceForce } from './police.js';
+import { Traffic } from './traffic.js';
+import { Hazards } from './hazards.js';
 import { Hud } from './hud.js';
 import { Minimap } from './minimap.js';
 import { UI } from './ui.js';
@@ -50,6 +52,8 @@ export class Game {
     sun.target = this.sunTarget;
 
     this.world = new World(this.scene);
+    this.traffic = new Traffic(this.scene, this.world);
+    this.hazards = new Hazards(this.scene, this.world);
     this.police = new PoliceForce(this.scene, this.world);
     this.hud = new Hud();
     this.minimap = new Minimap(document.getElementById('minimap'), this.world);
@@ -68,6 +72,8 @@ export class Game {
     this.ramCd = 0;
     this.noHitTimer = 0;
     this.driftGrace = 0;
+    this.waterTimer = 0;
+    this.blockTimer = 12;
     this.orbit = 0;
     this.lastTime = performance.now();
     this.pixelRatio = Math.min(devicePixelRatio, 1.75);
@@ -86,6 +92,11 @@ export class Game {
     this.setPlayerCar();
     this.parkForMenu();
     this.bindKeys();
+    canvas.addEventListener('webglcontextlost', e => {
+      e.preventDefault();
+      this.mode = 'menu';
+      this.hud.toast('graphics context lost · reload the page', 'bad');
+    });
     window.addEventListener('resize', () => this.resize());
     this.resize();
     sfx.setMuted(store.muted);
@@ -127,8 +138,14 @@ export class Game {
     window.addEventListener('keydown', wake, { once: false });
   }
 
+  specSignature() {
+    const car = store.selectedCar;
+    return car.id + '|' + (car.admin ? JSON.stringify(store.admin) : '');
+  }
+
   setPlayerCar() {
     const spec = resolveSpec(store.selectedCar, store.admin);
+    this.carSig = this.specSignature();
     if (this.player) {
       this.scene.remove(this.player.group);
       this.player.dispose();
@@ -139,8 +156,8 @@ export class Game {
   }
 
   parkForMenu() {
-    const p = this.world.randomRoadPoint();
-    this.player.placeAt(p.x, p.z, p.yaw);
+    const p = this.world.dryRoadPoint();
+    this.player.placeAt(p.x, p.z, p.yaw, this.world.floorAt(p.x, p.z));
     this.orbit = Math.random() * Math.PI * 2;
     this.camera.position.set(p.x + 12, 6, p.z + 12);
   }
@@ -175,26 +192,21 @@ export class Game {
 
   unstick() {
     if (this.mode !== 'playing') return;
-    const p = this.world.randomRoadPoint(this.player.pos, 0);
-    const near = this.nearestRoad(this.player.pos.x, this.player.pos.z);
-    this.player.placeAt(near.x ?? p.x, near.z ?? p.z, this.player.yaw);
+    const near = this.world.nearestStreetPoint(this.player.pos.x, this.player.pos.z);
+    const dry = this.world.wetPoint(near.x, near.z)
+      ? this.world.dryRoadPoint(this.player.pos, 0)
+      : near;
+    this.player.placeAt(dry.x, dry.z, this.player.yaw, this.world.floorAt(dry.x, dry.z));
     this.snapCamera();
     this.hud.toast('car reset');
-  }
-
-  nearestRoad(x, z) {
-    const { B, half } = this.world;
-    const ix = Math.round((x + half) / B) * B - half;
-    const iz = Math.round((z + half) / B) * B - half;
-    return Math.abs(x - ix) < Math.abs(z - iz) ? { x: ix, z } : { x, z: iz };
   }
 
   startRun() {
     sfx.init();
     this.setPlayerCar();
     this.police.clear();
-    const p = this.world.randomRoadPoint();
-    this.player.placeAt(p.x, p.z, p.yaw);
+    const p = this.world.dryRoadPoint();
+    this.player.placeAt(p.x, p.z, p.yaw, this.world.floorAt(p.x, p.z));
     this.player.damage = 0;
     this.player.distance = 0;
     this.player.boostFuel = 1;
@@ -209,6 +221,8 @@ export class Game {
     this.impactCd = 0;
     this.ramCd = 0;
     this.noHitTimer = 0;
+    this.waterTimer = 0;
+    this.blockTimer = 12;
     this.mode = 'playing';
     sfx.engineOn = true;
     this.snapCamera();
@@ -228,6 +242,18 @@ export class Game {
 
   resume() {
     if (this.mode !== 'paused') return;
+    if (this.carSig !== this.specSignature()) {
+      const { x, z } = this.player.pos;
+      const yaw = this.player.yaw;
+      const damage = this.player.damage;
+      const distance = this.player.distance;
+      this.setPlayerCar();
+      this.player.placeAt(x, z, yaw, this.world.floorAt(x, z));
+      this.player.damage = damage;
+      this.player.distance = distance;
+      this.snapCamera();
+      this.hud.toast('now driving ' + this.player.spec.name.toLowerCase(), 'mod');
+    }
     this.mode = 'playing';
     sfx.engineOn = true;
     this.ui.hideAll();
@@ -251,11 +277,14 @@ export class Game {
     input.releaseAll();
     store.recordRun({ distance: this.player.distance, coins: this.runCoins, heat: this.maxStars });
     this.hud.clearCombo();
+    const copy = {
+      busted: ['BUSTED', 'They boxed you in. No paperwork today — the mod pays your bail.'],
+      wrecked: ['WRECKED', 'Chassis folded. Free rebuild, courtesy of the mod.'],
+      sunk: ['SUNK', 'The harbour swallowed it. The mod fishes you out for free.']
+    }[kind] || ['WRECKED', 'Free rebuild, courtesy of the mod.'];
     this.ui.showDown({
-      title: kind === 'busted' ? 'BUSTED' : 'WRECKED',
-      sub: kind === 'busted'
-        ? 'They boxed you in. No paperwork today — the mod pays your bail.'
-        : 'Chassis folded. Free rebuild, courtesy of the mod.',
+      title: copy[0],
+      sub: copy[1],
       runCoins: this.runCoins,
       distance: this.player.distance,
       stars: this.maxStars
@@ -264,8 +293,8 @@ export class Game {
 
   respawn() {
     this.police.clear();
-    const p = this.world.randomRoadPoint();
-    this.player.placeAt(p.x, p.z, p.yaw);
+    const p = this.world.dryRoadPoint();
+    this.player.placeAt(p.x, p.z, p.yaw, this.world.floorAt(p.x, p.z));
     this.player.damage = 0;
     this.player.boostFuel = 1;
     this.bust = 0;
@@ -274,6 +303,8 @@ export class Game {
     this.impactCd = 0;
     this.ramCd = 0;
     this.noHitTimer = 0;
+    this.waterTimer = 0;
+    this.blockTimer = 12;
     this.mode = 'playing';
     sfx.engineOn = true;
     this.snapCamera();
@@ -298,10 +329,29 @@ export class Game {
     const player = this.player;
     const spec = player.spec;
 
-    player.update(dt, this.controls(), {});
+    const floor = this.world.floorAt(player.pos.x, player.pos.z);
+    player.update(dt, this.controls(), { floor });
     this.impactCd = Math.max(0, this.impactCd - dt);
     this.ramCd = Math.max(0, this.ramCd - dt);
     this.noHitTimer += dt;
+
+    this.hazards.update(dt, player, {
+      onSmash: (n) => {
+        player.takeDamage(n * 3.5);
+        player.vel.multiplyScalar(0.86);
+        this.shake = Math.max(this.shake, 0.35);
+        sfx.crash(0.55);
+        if (!spec.noPolice) this.heat = Math.min(5.99, this.heat + 0.12 * n);
+        this.hud.toast('roadblock smashed', 'mod');
+      },
+      onTrap: () => {
+        if (spec.noPolice) return;
+        this.heat = Math.min(5.99, this.heat + 0.85);
+        this.hud.toast('speed trap · units called', 'bad');
+        sfx.blip(420, 0.18, 'sawtooth', 0.1);
+        this.police.spawnCooldown = 0;
+      }
+    });
 
     const hit = this.world.collide(player);
     if (hit.impact > 6 && this.impactCd <= 0) {
@@ -324,7 +374,28 @@ export class Game {
       player.lastImpact = 0;
     }
 
+    this.traffic.update(dt, player.pos);
+    const trafficHit = this.traffic.collide(player);
+    if (trafficHit > 6 && this.impactCd <= 0) {
+      player.takeDamage(Math.min(26, trafficHit * 0.42));
+      this.shake = Math.max(this.shake, clamp(trafficHit / 45, 0, 0.6));
+      sfx.crash(clamp(trafficHit / 40, 0.2, 1));
+      if (!spec.noPolice) this.heat = Math.min(5.99, this.heat + 0.12);
+      this.impactCd = 0.4;
+      this.noHitTimer = 0;
+      this.hud.toast('traffic hit', 'bad');
+    }
+
+    if (!spec.noPolice && this.heat >= 2.5) {
+      this.blockTimer -= dt;
+      if (this.blockTimer <= 0) {
+        this.blockTimer = 16 + Math.random() * 10;
+        if (this.hazards.spawnAhead(player)) this.hud.toast('roadblock ahead', 'bad');
+      }
+    }
+
     const pol = this.police.update(dt, player, this.heat, { noPolice: spec.noPolice });
+    for (const u of this.police.units) this.traffic.collide(u.vehicle);
     if (pol.ramImpact > 3 && this.ramCd <= 0) {
       player.takeDamage(Math.min(22, pol.ramImpact * 0.9));
       this.shake = Math.max(this.shake, clamp(pol.ramImpact / 30, 0, 0.6));
@@ -335,6 +406,33 @@ export class Game {
     }
     if (this.noHitTimer > 5 && player.damage > 0) {
       player.damage = Math.max(0, player.damage - dt * 2.5);
+    }
+
+    if (player.lastAirTime > 0.65) {
+      const pay = Math.floor(player.lastAirTime * 70);
+      store.addCoins(pay);
+      this.runCoins += pay;
+      this.hud.toast((player.lastAirTime > 1.4 ? 'huge air +' : 'big air +') + pay, 'gold');
+      sfx.cash();
+    }
+    player.lastAirTime = 0;
+
+    const wet = !player.flying && this.world.inWater(player.pos.x, player.pos.z, player.pos.y);
+    if (wet) {
+      if (this.waterTimer === 0) {
+        this.hud.toast('in the water · get out', 'bad');
+        sfx.crash(0.5);
+      }
+      this.waterTimer += dt;
+      const drag = Math.exp(-3.4 * dt);
+      player.vel.multiplyScalar(drag);
+      player.fwdSpeed *= drag;
+      player.latSpeed *= drag;
+      player.takeDamage(dt * 17);
+      this.shake = Math.max(this.shake, 0.12);
+      if (this.waterTimer > 2.4) { this.goDown('sunk'); return; }
+    } else {
+      this.waterTimer = 0;
     }
 
     const gained = this.world.collectCoins(player.pos, player.radius);
@@ -416,7 +514,7 @@ export class Game {
       reverse: player.fwdSpeed < -0.5,
       carName: store.selectedCar.name
     });
-    this.minimap.draw(player, this.police.units);
+    this.minimap.draw(player, this.police.units, this.traffic, this.hazards);
   }
 
   updateCamera(dt) {
@@ -441,7 +539,7 @@ export class Game {
     let back = 8.5 + player.spec.length * 0.5 + spd * 5;
     let up = 3.3 + spd * 0.8;
     if (mode === 'far') { back *= 1.9; up *= 2.1; }
-    if (mode === 'hood') { back = -player.spec.length * 0.18; up = 1.5; }
+    if (mode === 'hood') { back = -player.spec.length * 0.46; up = 1.05 + player.spec.wheelSize; }
     if (player.flying) { back += 4; up += 2.4; }
 
     this.camPos.set(
@@ -499,7 +597,10 @@ export class Game {
     this.autoResolution(dt);
 
     if (this.mode === 'playing') this.step(dt);
-    else if (this.mode === 'menu') this.world.update(dt);
+    else if (this.mode === 'menu') {
+      this.world.update(dt);
+      this.traffic.update(dt, this.player.pos);
+    }
 
     this.updateCamera(dt);
     this.renderer.render(this.scene, this.camera);
