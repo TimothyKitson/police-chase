@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Blacktop Police Chase — MODDED</title>
+<meta name="description" content="A modded arcade police-chase driving game. Fly, instant coins, free respawns and a fully tunable admin car." />
+<link rel="preload" href="./vendor/three.module.js" as="script" crossorigin />
+<link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="pill" id="coinPill"><span class="ico">◉</span><span id="coinValue">0</span></div>
+    <div class="pill" id="wantedPill"><span class="label">WANTED</span><span id="wantedStars">☆☆☆☆☆</span></div>
+    <div class="pill" id="carPill"><span class="label">CAR</span><span id="carName">—</span></div>
+  </div>
+
+  <div class="hud-left">
+    <div class="bar-block">
+      <span class="bar-label">DAMAGE</span>
+      <div class="bar"><i id="damageBar"></i></div>
+    </div>
+    <div class="bar-block">
+      <span class="bar-label">BUSTED</span>
+      <div class="bar danger"><i id="bustBar"></i></div>
+    </div>
+    <div class="bar-block hidden" id="boostBlock">
+      <span class="bar-label">BOOST</span>
+      <div class="bar boost"><i id="boostBar"></i></div>
+    </div>
+  </div>
+
+  <div class="hud-right">
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div class="mini-legend"><b>YOU</b> · <span class="cop">COPS</span> · <span class="coin">COINS</span></div>
+  </div>
+
+  <div class="hud-bottom">
+    <div id="speedo">
+      <canvas id="speedoCanvas" width="260" height="150"></canvas>
+      <div id="speedText"><b id="speedValue">0</b><span>km/h</span></div>
+      <div id="gearText">N</div>
+    </div>
+    <div id="modeChips">
+      <span class="chip" id="chipFly">E · FLY OFF</span>
+      <span class="chip" id="chipDrift">DRIFT</span>
+      <span class="chip" id="chipBoost">SHIFT · BOOST</span>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="comboWrap" class="hidden"><span id="comboText">DRIFT</span><span id="comboValue">+0</span></div>
+</div>
+
+<div id="screens">
+  <section id="screen-menu" class="screen active">
+    <div class="menu-wrap">
+      <h1 class="logo">BLACKTOP<span>POLICE CHASE</span></h1>
+      <div class="modtag">MODDED BUILD v1.0</div>
+      <div class="menu-buttons">
+        <button class="btn primary" data-action="play">DRIVE</button>
+        <button class="btn" data-action="garage">GARAGE</button>
+        <button class="btn ghost" data-action="help">CONTROLS &amp; MODS</button>
+      </div>
+      <div class="wallet">BANK <b id="menuCoins">0</b> coins<span id="menuBest"></span></div>
+      <div class="modlist">
+        <div><kbd>E</kbd> fly mode</div>
+        <div><kbd>R</kbd> +1000 coins</div>
+        <div><kbd>◎</kbd> free instant respawn, no ads</div>
+        <div><kbd>★</kbd> admin car w/ live tuning</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-garage" class="screen">
+    <div class="garage">
+      <header>
+        <h2>GARAGE</h2>
+        <div class="wallet">BANK <b id="garageCoins">0</b> coins <button class="btn tiny mod" data-action="cheatcoins">+1000 (R)</button></div>
+        <button class="btn ghost tiny" data-action="back">BACK</button>
+      </header>
+      <div class="garage-body">
+        <div id="carList" class="car-list"></div>
+        <div class="preview-pane">
+          <div id="previewMount"></div>
+          <div class="preview-info">
+            <h3 id="previewName">—</h3>
+            <p id="previewDesc"></p>
+            <div class="stat-rows" id="previewStats"></div>
+            <div class="preview-actions">
+              <button class="btn primary" id="btnBuySelect">SELECT</button>
+              <button class="btn mod hidden" id="btnTune">⚙ TUNE ADMIN CAR</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-admin" class="screen">
+    <div class="admin">
+      <header>
+        <h2>ADMIN CAR <span class="modtag inline">DEV CONSOLE</span></h2>
+        <div class="admin-head-actions">
+          <button class="btn ghost tiny" data-action="adminreset">RESET DEFAULTS</button>
+          <button class="btn ghost tiny" data-action="garage">BACK</button>
+        </div>
+      </header>
+      <p class="admin-note">Set it up before you start. Everything applies the moment you spawn.</p>
+      <div class="admin-body">
+        <div id="adminControls" class="admin-controls"></div>
+        <div class="admin-side">
+          <div id="adminPreviewMount"></div>
+          <div class="admin-presets">
+            <span>PRESETS</span>
+            <div id="adminPresets"></div>
+          </div>
+          <button class="btn primary wide" data-action="playadmin">SAVE &amp; DRIVE</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-help" class="screen">
+    <div class="help">
+      <header><h2>CONTROLS &amp; MODS</h2><button class="btn ghost tiny" data-action="back">BACK</button></header>
+      <div class="help-grid">
+        <div class="help-card">
+          <h3>DRIVING</h3>
+          <ul>
+            <li><kbd>W</kbd>/<kbd>↑</kbd> throttle</li>
+            <li><kbd>S</kbd>/<kbd>↓</kbd> brake &amp; reverse</li>
+            <li><kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> steer</li>
+            <li><kbd>Space</kbd> handbrake / drift</li>
+            <li><kbd>Shift</kbd> boost</li>
+            <li><kbd>F</kbd> flip &amp; unstick</li>
+            <li><kbd>C</kbd> camera</li>
+            <li><kbd>Esc</kbd> pause</li>
+            <li><kbd>M</kbd> mute</li>
+          </ul>
+        </div>
+        <div class="help-card mod">
+          <h3>MOD · <kbd>E</kbd> FLY</h3>
+          <p>Toggle flight any time. <kbd>W</kbd>/<kbd>S</kbd> thrust, <kbd>A</kbd>/<kbd>D</kbd> yaw, <kbd>Space</kbd> climb, <kbd>Shift</kbd>+<kbd>Space</kbd> or <kbd>Ctrl</kbd> descend. Cops can't reach you upstairs, so heat cools down while you're airborne.</p>
+        </div>
+        <div class="help-card mod">
+          <h3>MOD · <kbd>R</kbd> COINS</h3>
+          <p>Instantly banks 1000 coins, any time — menu, garage or mid-chase.</p>
+        </div>
+        <div class="help-card mod">
+          <h3>MOD · FREE RESPAWN</h3>
+          <p>The watch-an-ad-to-respawn gate is gone. Wreck it or get busted and you respawn instantly with one click or <kbd>Enter</kbd>.</p>
+        </div>
+        <div class="help-card mod">
+          <h3>MOD · ADMIN CAR</h3>
+          <p>100,000 coins unlocks the Admin Prototype: tune top speed, acceleration, grip, brakes, boost, weight, gravity, fly speed, size, paint, rims and underglow before you spawn.</p>
+        </div>
+        <div class="help-card">
+          <h3>MAKING MONEY</h3>
+          <ul>
+            <li>Coin rings around the city</li>
+            <li>Drift chains pay per second</li>
+            <li>Surviving heat pays a bounty per star</li>
+            <li>Or just spam <kbd>R</kbd> — it's a mod build</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-pause" class="screen">
+    <div class="menu-wrap small">
+      <h2 class="pause-title">PAUSED</h2>
+      <div class="menu-buttons">
+        <button class="btn primary" data-action="resume">RESUME</button>
+        <button class="btn" data-action="garage">GARAGE</button>
+        <button class="btn ghost" data-action="help">CONTROLS &amp; MODS</button>
+        <button class="btn ghost" data-action="menu">QUIT TO MENU</button>
+      </div>
+      <div class="wallet">BANK <b id="pauseCoins">0</b> coins</div>
+    </div>
+  </section>
+
+  <section id="screen-down" class="screen">
+    <div class="menu-wrap small down">
+      <h2 class="down-title" id="downTitle">BUSTED</h2>
+      <p class="down-sub" id="downSub">The blacktop won this round.</p>
+      <div class="ad-removed">
+        <span class="strike">WATCH AD TO RESPAWN</span>
+        <span class="removed">AD REMOVED BY MOD</span>
+      </div>
+      <div class="menu-buttons">
+        <button class="btn primary big" data-action="respawn">RESPAWN — FREE <small>ENTER</small></button>
+        <button class="btn ghost" data-action="garage">GARAGE</button>
+        <button class="btn ghost" data-action="menu">QUIT TO MENU</button>
+      </div>
+      <div class="run-stats" id="runStats"></div>
+    </div>
+  </section>
+</div>
+
+<div id="loading"><div class="spinner"></div><span>BUILDING THE CITY…</span></div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
