@@ -6,7 +6,7 @@ export class Minimap {
     this.range = 190;
   }
 
-  draw(player, police, traffic, hazards) {
+  draw(player, police, traffic, hazards, jobs) {
     const ctx = this.ctx;
     const { width: w, height: h } = this.canvas;
     const cx = w / 2, cy = h / 2;
@@ -101,6 +101,37 @@ export class Minimap {
         ctx.beginPath();
         ctx.arc(dx, dz, 2.5, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+
+    if (jobs) {
+      const diamond = (x, z, color, size) => {
+        const dx = (x - player.pos.x) * scale;
+        const dz = (z - player.pos.z) * scale;
+        if (Math.abs(dx) > w || Math.abs(dz) > h) return;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(dx, dz - size);
+        ctx.lineTo(dx + size, dz);
+        ctx.lineTo(dx, dz + size);
+        ctx.lineTo(dx - size, dz);
+        ctx.closePath();
+        ctx.fill();
+      };
+      for (const b of jobs.banks) diamond(b.x, b.z, 'rgba(255,204,61,.55)', 3);
+      for (const sh of jobs.safehouses) diamond(sh.x, sh.z, 'rgba(61,220,132,.55)', 3);
+      if (jobs.target) {
+        const color = jobs.state === 'toDrop' ? '#3ddc84' : '#ffcc3d';
+        diamond(jobs.target.x, jobs.target.z, color, 6);
+        const dx = (jobs.target.x - player.pos.x) * scale;
+        const dz = (jobs.target.z - player.pos.z) * scale;
+        const clampedX = Math.max(-w / 2 + 8, Math.min(w / 2 - 8, dx));
+        const clampedZ = Math.max(-h / 2 + 8, Math.min(h / 2 - 8, dz));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(clampedX, clampedZ, 7, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
 

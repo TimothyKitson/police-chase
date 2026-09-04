@@ -4,6 +4,21 @@ export const ADMIN_PRICE = 100000;
 export const CHEAT_COINS = 1000;
 export const COIN_VALUE = 25;
 
+export const JOBS = {
+  banks: 10,
+  safehouses: 10,
+  minSeparation: 150,
+  pickupRadius: 8.5,
+  dropRadius: 9.5,
+  loadSpeed: 14,
+  basePay: 750,
+  perStar: 150,
+  parTime: 95,
+  timeBonus: 450,
+  streakStep: 0.15,
+  streakCap: 6
+};
+
 export const WORLD = {
   seed: 730421,
   streets: 14,
@@ -40,6 +55,7 @@ export const HAZARD = {
 };
 
 export const BASE_CAR = {
+  crew: 2,
   maxSpeed: 44,
   accel: 24,
   reverseAccel: 12,
@@ -72,16 +88,29 @@ export const CARS = [
     id: 'cruiser',
     name: 'City Cruiser',
     price: 0,
-    desc: 'Rental-lot hatchback. Cheap, grippy, and slower than every cruiser on the force.',
+    desc: 'Rental-lot hatchback. Cheap, grippy, and slower than every cruiser on the force. Seats two of the crew.',
+    crew: 2,
     color: 0x3fa9f5, accentColor: 0x121821,
     maxSpeed: 42, accel: 23, grip: 7.6, brake: 32, steerRate: 2.2, boost: 1.22,
     length: 3.9, width: 1.86, wheelSize: 0.33
   },
   {
+    id: 'van',
+    name: 'Haulaway Van',
+    price: 3000,
+    truck: true,
+    crew: 4,
+    desc: 'Battered panel van. Slow and tall, but it swallows a whole crew — four bodies a run instead of two.',
+    color: 0xd8d3c4, accentColor: 0x1c1a16,
+    maxSpeed: 38, accel: 19, grip: 7.9, brake: 30, steerRate: 1.85, boost: 1.18, mass: 1.9,
+    length: 5.4, width: 2.24, wheelSize: 0.4
+  },
+  {
     id: 'muscle',
     name: 'Blacktop V8',
     price: 6500,
-    desc: 'Loud, tail-happy muscle. Break the rear loose on purpose and farm drift cash.',
+    desc: 'Loud, tail-happy muscle. Break the rear loose on purpose and farm drift cash. Seats two.',
+    crew: 2,
     color: 0xf25c2a, accentColor: 0x1a1010,
     maxSpeed: 53, accel: 31, grip: 5.9, driftGrip: 1.1, brake: 30, steerRate: 2.05, boost: 1.32,
     length: 4.6, width: 2.02, wheelSize: 0.37, spoiler: true
@@ -90,17 +119,30 @@ export const CARS = [
     id: 'interceptor',
     name: 'Nightline GT',
     price: 24000,
-    desc: 'Track-bred coupe. Enough top end to lose a five-star pursuit on a straight.',
+    desc: 'Track-bred coupe. Enough top end to lose a five-star pursuit on a straight. Seats two.',
+    crew: 2,
     color: 0x9d5cff, accentColor: 0x140f22,
     maxSpeed: 63, accel: 37, grip: 8.4, brake: 40, steerRate: 2.15, boost: 1.4,
     length: 4.4, width: 1.96, wheelSize: 0.35, spoiler: true, glow: true, glowColor: 0x9d5cff
+  },
+  {
+    id: 'bullion',
+    name: 'Bullion Hauler',
+    price: 45000,
+    truck: true,
+    crew: 6,
+    desc: 'Ex-security truck. Heavy enough to shrug off a ram and roomy enough for six — if you can keep it moving.',
+    color: 0x4a5560, accentColor: 0x14181d,
+    maxSpeed: 47, accel: 27, grip: 8.6, brake: 44, steerRate: 1.75, boost: 1.24, mass: 3.1,
+    length: 6.6, width: 2.5, wheelSize: 0.47
   },
   {
     id: 'admin',
     name: 'Admin Prototype',
     price: ADMIN_PRICE,
     admin: true,
-    desc: 'Dev-only chassis with the tuning console wired straight to the physics. Set it up however you want before you spawn.',
+    desc: 'Dev-only chassis with the tuning console wired straight to the physics. Set it up however you want before you spawn. Seats six.',
+    crew: 6,
     color: 0xff3ea5, accentColor: 0x14060f,
     maxSpeed: 92, accel: 62, grip: 9.4, brake: 52, steerRate: 2.5, boost: 1.7,
     flySpeed: 62, flyLift: 34,
@@ -143,18 +185,15 @@ export const ADMIN_SCHEMA = [
   { key: 'accel', label: 'Acceleration', min: 8, max: 260, step: 1, fmt: v => one(v) + ' m/s²' },
   { key: 'brake', label: 'Brake Force', min: 10, max: 160, step: 1, fmt: v => one(v) + ' m/s²' },
   { key: 'boost', label: 'Boost Multiplier', min: 1, max: 4, step: 0.02, fmt: v => '×' + v.toFixed(2) },
-
   { group: 'HANDLING' },
   { key: 'grip', label: 'Grip', min: 1.5, max: 26, step: 0.1, fmt: one },
   { key: 'driftGrip', label: 'Handbrake Grip', min: 0.2, max: 8, step: 0.1, fmt: one },
   { key: 'steerRate', label: 'Steering Rate', min: 0.6, max: 7, step: 0.05, fmt: v => v.toFixed(2) + ' rad/s' },
   { key: 'mass', label: 'Weight', min: 0.3, max: 4, step: 0.05, fmt: v => Math.round(v * 1400) + ' kg' },
-
   { group: 'MOD PHYSICS' },
   { key: 'flySpeed', label: 'Fly Thrust (E)', min: 12, max: 220, step: 1, fmt: kmh },
   { key: 'flyLift', label: 'Climb Rate', min: 5, max: 120, step: 1, fmt: v => one(v) + ' m/s' },
   { key: 'gravity', label: 'Gravity', min: 2, max: 70, step: 0.5, fmt: v => one(v) + ' m/s²' },
-
   { group: 'APPEARANCE' },
   { key: 'color', label: 'Body Paint', type: 'color' },
   { key: 'accentColor', label: 'Trim / Glass', type: 'color' },
@@ -165,7 +204,6 @@ export const ADMIN_SCHEMA = [
   { key: 'length', label: 'Body Length', min: 2.6, max: 9, step: 0.05, fmt: v => v.toFixed(2) + ' m' },
   { key: 'width', label: 'Body Width', min: 1.4, max: 5, step: 0.02, fmt: v => v.toFixed(2) + ' m' },
   { key: 'wheelSize', label: 'Wheel Size', min: 0.24, max: 1.1, step: 0.01, fmt: v => v.toFixed(2) + ' m' },
-
   { group: 'CHEATS' },
   { key: 'invincible', label: 'No Damage', type: 'toggle' },
   { key: 'noPolice', label: 'Police Ignore You', type: 'toggle' }

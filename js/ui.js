@@ -166,7 +166,8 @@ export class UI {
       ['GRIP', spec.grip / 26, spec.grip.toFixed(1)],
       ['BRAKES', spec.brake / 160, spec.brake.toFixed(0)],
       ['BOOST', (spec.boost - 1) / 3, '×' + spec.boost.toFixed(2)],
-      ['FLY THRUST', spec.flySpeed / 220, Math.round(spec.flySpeed * 3.6) + ' km/h']
+      ['FLY THRUST', spec.flySpeed / 220, Math.round(spec.flySpeed * 3.6) + ' km/h'],
+      ['CREW SEATS', (spec.crew || 2) / 6, String(spec.crew || 2)]
     ];
     $('previewStats').innerHTML = rows.map(([label, ratio, val]) => `
       <div class="stat-row${car.admin ? ' mod' : ''}">
@@ -297,6 +298,7 @@ export class UI {
     $('downTitle').textContent = info.title;
     $('downSub').textContent = info.sub;
     $('runStats').innerHTML = `
+      <div><b>${info.delivered ?? 0}</b>CREWS DELIVERED</div>
       <div><b>${fmtCoins(info.runCoins)}</b>COINS THIS RUN</div>
       <div><b>${(info.distance / 1000).toFixed(2)}</b>KM DRIVEN</div>
       <div><b>${info.stars}</b>MAX WANTED</div>

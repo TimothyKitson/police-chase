@@ -67,7 +67,7 @@ export class CarPreview {
   }
 
   signature(spec) {
-    return [spec.length, spec.width, spec.wheelSize, !!spec.spoiler, !!spec.glow].join('|');
+    return [spec.length, spec.width, spec.wheelSize, !!spec.spoiler, !!spec.glow, !!spec.truck].join('|');
   }
 
   setSpec(spec) {
@@ -90,7 +90,7 @@ export class CarPreview {
     this.turn.add(this.car.group);
     this.sig = sig;
     this.ring.material.color.set(spec.glow ? (spec.glowColor ?? 0x37e6ff) : 0x37e6ff);
-    const scale = Math.min(1, 4.3 / Math.max(spec.length, spec.width * 2.1));
+    const scale = Math.min(1, 4.3 / Math.max(spec.length, spec.width * 2.1, (spec.truck ? 5.4 : 0)));
     this.turn.scale.setScalar(scale);
   }
 

@@ -90,6 +90,25 @@ const CABIN = [
   [0.215, 0.78, 0.88, 0.98]
 ];
 
+const TRUCK_BODY = [
+  [-0.500, 0.94, 0.34, 2.10],
+  [-0.470, 1.00, 0.30, 2.16],
+  [-0.100, 1.00, 0.28, 2.18],
+  [0.140, 1.00, 0.28, 2.18],
+  [0.155, 0.96, 0.28, 1.22],
+  [0.330, 0.96, 0.26, 1.16],
+  [0.450, 0.90, 0.28, 1.06],
+  [0.500, 0.80, 0.34, 0.96]
+];
+
+const TRUCK_CABIN = [
+  [0.150, 0.90, 1.14, 1.30],
+  [0.210, 0.92, 1.14, 1.62],
+  [0.360, 0.92, 1.14, 1.60],
+  [0.470, 0.84, 1.14, 1.34],
+  [0.500, 0.76, 1.14, 1.16]
+];
+
 export function buildCar(spec, opts = {}) {
   const police = !!opts.police;
   const L = spec.length, W = spec.width, R = spec.wheelSize;
@@ -115,27 +134,52 @@ export function buildCar(spec, opts = {}) {
   const tyreMat = mk(new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.95 }));
   const chromeMat = mk(new THREE.MeshStandardMaterial({ color: 0x9aa4b0, metalness: 0.9, roughness: 0.25 }));
 
+  const truck = !!spec.truck;
+  const bodyProfile = truck ? TRUCK_BODY : BODY;
+  const cabinProfile = truck ? TRUCK_CABIN : CABIN;
+  const bodyTop = bodyProfile.reduce((m, s) => Math.max(m, s[3]), 0);
+  const cabinTop = cabinProfile.reduce((m, s) => Math.max(m, s[3]), 0);
+  const noseY = bodyProfile[bodyProfile.length - 1][3];
+  const tailY = bodyProfile[0][3];
+
   const lift = R * 0.42;
-  const bodyGeo = gk(hull(BODY, W / 2, L));
+  const bodyGeo = gk(hull(bodyProfile, W / 2, L));
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = lift;
   group.add(body);
 
-  const cabinGeo = gk(hull(CABIN, W / 2, L));
+  const cabinGeo = gk(hull(cabinProfile, W / 2, L));
   const cabin = new THREE.Mesh(cabinGeo, glassMat);
   cabin.position.y = lift;
   group.add(cabin);
 
-  const roof = new THREE.Mesh(box(W * 0.70, 0.06, L * 0.20), bodyMat);
-  roof.position.set(0, lift + 1.37, -L * 0.05);
+  const roof = new THREE.Mesh(
+    box(W * (truck ? 0.86 : 0.70), 0.06, L * (truck ? 0.14 : 0.20)),
+    bodyMat
+  );
+  roof.position.set(0, lift + cabinTop + 0.03, truck ? L * 0.28 : -L * 0.05);
   group.add(roof);
+
+  if (truck) {
+    const boxTop = new THREE.Mesh(box(W * 0.98, 0.08, L * 0.6), trimMat);
+    boxTop.position.set(0, lift + bodyTop + 0.04, -L * 0.16);
+    group.add(boxTop);
+    for (const sx of [-1, 1]) {
+      const rib = new THREE.Mesh(box(0.06, bodyTop - 0.5, L * 0.56), trimMat);
+      rib.position.set(sx * (W * 0.5 + 0.02), lift + bodyTop * 0.6, -L * 0.18);
+      group.add(rib);
+    }
+    const doors = new THREE.Mesh(box(W * 0.82, bodyTop - 0.75, 0.05), trimMat);
+    doors.position.set(0, lift + bodyTop * 0.6, -L * 0.5 - 0.02);
+    group.add(doors);
+  }
 
   const skirt = new THREE.Mesh(box(W * 1.01, 0.14, L * 0.72), trimMat);
   skirt.position.y = lift + 0.25;
   group.add(skirt);
 
   const grille = new THREE.Mesh(box(W * 0.5, 0.14, 0.1), trimMat);
-  grille.position.set(0, lift + 0.5, L * 0.5);
+  grille.position.set(0, lift + Math.min(0.5, noseY * 0.55), L * 0.5);
   group.add(grille);
 
   const headMat = mk(new THREE.MeshStandardMaterial({
@@ -146,13 +190,13 @@ export function buildCar(spec, opts = {}) {
   }));
   for (const sx of [-1, 1]) {
     const hl = new THREE.Mesh(box(W * 0.22, 0.12, 0.08), headMat);
-    hl.position.set(sx * W * 0.28, lift + 0.62, L * 0.495);
+    hl.position.set(sx * W * 0.28, lift + Math.min(0.62, noseY * 0.66), L * 0.495);
     group.add(hl);
     const tl = new THREE.Mesh(box(W * 0.24, 0.1, 0.07), tailMat);
-    tl.position.set(sx * W * 0.27, lift + 0.66, -L * 0.5);
+    tl.position.set(sx * W * 0.27, lift + Math.min(0.66, tailY * 0.72), -L * 0.5);
     group.add(tl);
     const mirror = new THREE.Mesh(box(0.2, 0.1, 0.08), trimMat);
-    mirror.position.set(sx * W * 0.52, lift + 1.02, L * 0.14);
+    mirror.position.set(sx * W * 0.52, lift + (truck ? 1.3 : 1.02), L * (truck ? 0.36 : 0.14));
     group.add(mirror);
   }
 
@@ -178,7 +222,7 @@ export function buildCar(spec, opts = {}) {
     wheels.push({ holder, spin, front });
   }
 
-  if (spec.spoiler) {
+  if (spec.spoiler && !truck) {
     const wing = new THREE.Mesh(box(W * 0.86, 0.07, L * 0.13), trimMat);
     wing.position.set(0, lift + 1.12, -L * 0.47);
     group.add(wing);
@@ -206,7 +250,7 @@ export function buildCar(spec, opts = {}) {
   if (police) {
     const liveryMat = mk(new THREE.MeshStandardMaterial({ color: 0x10254f, roughness: 0.55, metalness: 0.3 }));
     const hoodPanel = new THREE.Mesh(box(W * 0.62, 0.03, L * 0.24), liveryMat);
-    hoodPanel.position.set(0, lift + 0.9, L * 0.28);
+    hoodPanel.position.set(0, lift + Math.min(0.9, noseY * 0.95), L * 0.28);
     group.add(hoodPanel);
     for (const sx of [-1, 1]) {
       const doorPanel = new THREE.Mesh(box(0.03, 0.3, L * 0.4), liveryMat);
@@ -218,15 +262,15 @@ export function buildCar(spec, opts = {}) {
     }
 
     const barBase = new THREE.Mesh(box(W * 0.66, 0.07, 0.26), trimMat);
-    barBase.position.set(0, lift + 1.42, -L * 0.03);
+    barBase.position.set(0, lift + cabinTop + 0.08, -L * 0.03);
     group.add(barBase);
     const redMat = mk(new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 2 }));
     const blueMat = mk(new THREE.MeshStandardMaterial({ color: 0x2255ff, emissive: 0x0033ff, emissiveIntensity: 2 }));
     const domeGeo = box(W * 0.28, 0.13, 0.22);
     const rr = new THREE.Mesh(domeGeo, redMat);
-    rr.position.set(-W * 0.17, lift + 1.51, -L * 0.03);
+    rr.position.set(-W * 0.17, lift + cabinTop + 0.17, -L * 0.03);
     const bb = new THREE.Mesh(domeGeo, blueMat);
-    bb.position.set(W * 0.17, lift + 1.51, -L * 0.03);
+    bb.position.set(W * 0.17, lift + cabinTop + 0.17, -L * 0.03);
     group.add(rr, bb);
 
     const pushBar = new THREE.Mesh(box(W * 0.82, 0.1, 0.1), chromeMat);
@@ -238,7 +282,7 @@ export function buildCar(spec, opts = {}) {
       group.add(upright);
     }
     const spot = new THREE.Mesh(box(0.16, 0.16, 0.18), chromeMat);
-    spot.position.set(-W * 0.44, lift + 1.16, L * 0.2);
+    spot.position.set(-W * 0.44, lift + cabinTop * 0.86, L * 0.2);
     group.add(spot);
 
     lightbar = { redMat, blueMat };
@@ -252,6 +296,7 @@ export function buildCar(spec, opts = {}) {
   return {
     group,
     wheels,
+    height: lift + Math.max(bodyTop, cabinTop),
     lightbar,
     glowMesh,
     materials: { bodyMat, trimMat, rimMat, glassMat },

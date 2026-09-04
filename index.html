@@ -16,6 +16,7 @@
     <div class="pill" id="coinPill"><span class="ico">◉</span><span id="coinValue">0</span></div>
     <div class="pill" id="wantedPill"><span class="label">WANTED</span><span id="wantedStars">☆☆☆☆☆</span></div>
     <div class="pill" id="carPill"><span class="label">CAR</span><span id="carName">—</span></div>
+    <div class="pill" id="jobPill"><span class="label">RUNS</span><span id="jobCount">0</span></div>
   </div>
 
   <div class="hud-left">
@@ -49,6 +50,15 @@
       <span class="chip" id="chipDrift">DRIFT</span>
       <span class="chip" id="chipBoost">SHIFT · BOOST</span>
     </div>
+  </div>
+
+  <div id="objective">
+    <span class="obj-arrow" id="objArrow">➤</span>
+    <span class="obj-text">
+      <b id="objLabel">WAITING ON A JOB</b>
+      <i id="objSub">—</i>
+    </span>
+    <span class="obj-crew hidden" id="objCrew">CREW 0</span>
   </div>
 
   <div id="toasts"></div>
@@ -159,8 +169,19 @@
           <p>100,000 coins unlocks the Admin Prototype: tune top speed, acceleration, grip, brakes, boost, weight, gravity, fly speed, size, paint, rims and underglow before you spawn.</p>
         </div>
         <div class="help-card">
+          <h3>THE RUN</h3>
+          <ul>
+            <li>A gold beam marks the bank — the crew is waiting</li>
+            <li>Slow to under 50 km/h at the beam to load them in</li>
+            <li>A green beam marks the safehouse — get there and stop</li>
+            <li>Pay scales with crew size, wanted level, speed and streak</li>
+            <li>Busted, wrecked or sunk with the crew aboard loses the run</li>
+          </ul>
+        </div>
+        <div class="help-card">
           <h3>MAKING MONEY</h3>
           <ul>
+            <li>Delivering crews to safehouses — the main earner</li>
             <li>Coin rings around the city</li>
             <li>Drift chains pay per second</li>
             <li>Ramp jumps pay for air time</li>

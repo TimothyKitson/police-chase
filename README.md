@@ -15,6 +15,21 @@ No build step, no bundler, no external requests at runtime. Drop it on any stati
 | **Free respawn** | The watch-an-ad-to-respawn gate is removed. Get wrecked or busted and you respawn instantly with one click or <kbd>Enter</kbd>. |
 | **Admin car** | 100,000 coins unlocks the Admin Prototype plus a dev console you open **before** you spawn: top speed, acceleration, brakes, boost, grip, handbrake grip, steering rate, weight, fly thrust, climb rate, gravity, body length/width, wheel size, paint, trim, rims, underglow, rear wing, plus *No Damage* and *Police Ignore You*. Six presets included (Balanced, Rocket, Drift King, Monster, Jet, God Mode). |
 
+## The run
+
+You're the getaway driver. A gold beam marks the bank where the crew is waiting — pull up
+and slow to under 50 km/h to load them in, then a green beam marks the safehouse. Deliver
+them and get paid; get busted, wrecked or sunk with the crew aboard and the run is lost
+(the mod respawns you free either way, and a new job is offered a couple of seconds later).
+
+Pay scales with crew size, wanted level at delivery, how fast you got there, how much
+damage you're carrying, and a streak multiplier that grows up to ×1.9 for consecutive runs.
+
+That's why the roster splits two ways, same as the original's unlocks: **faster cars**
+(City Cruiser → Blacktop V8 → Nightline GT) carry two, while **heavy trucks** (Haulaway
+Van → Bullion Hauler) are slower and taller but haul four to six, so they pay far more per
+run if you can keep them out of the walls.
+
 ## Controls
 
 - <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows — drive
@@ -46,14 +61,25 @@ Built to match the shape of the original's map rather than a tidy grid:
   plus a harbour bay in the docks. Drive in and you sink (free rescue, it's a mod).
 - **Ramps** — yellow-tipped kickers on the arterials and big ones in the yards and parks,
   with real launch physics and an air-time payout.
+- **Banks and safehouses** — ten of each, lit signs on pylons, spread across the map as the
+  endpoints of every run.
+- **Pedestrians** — sidewalk crowds that scatter when you come through at speed.
+
+### What this isn't
+
+An exact copy. I have no access to the original's assets, models, textures, map data or
+code, so every model, texture and street here is built from scratch — this matches the
+*shape* of its map and its loop, not its geometry.
 
 ## Earning coins the honest way
 
-Coin rings around the city (25 each), drift chains that pay per second, ramp air time,
-and a heat bounty every 10 seconds scaled to your wanted level.
+Crew deliveries are the main earner. On top of that: coin rings around the city (25 each),
+drift chains that pay per second, ramp air time, and a heat bounty every 10 seconds scaled
+to your wanted level.
 
-Cars: City Cruiser (free), Blacktop V8 (6,500), Nightline GT (24,000), Admin Prototype (100,000).
-Progress, purchases and admin tuning persist in `localStorage`.
+Roster: City Cruiser (free), Haulaway Van (3,000), Blacktop V8 (6,500), Nightline GT
+(24,000), Bullion Hauler (45,000), Admin Prototype (100,000). Progress, purchases and
+admin tuning persist in `localStorage`.
 
 ## Run locally
 
@@ -80,6 +106,8 @@ js/game.js          renderer, game loop, heat/bust/economy logic
 js/world.js         city generation, street network, water, bridges, ramps, collision grid
 js/traffic.js       civilian traffic on the lane network
 js/hazards.js       roadblocks and speed traps
+js/jobs.js          bank pickups, safehouse deliveries, payouts
+js/pedestrians.js   sidewalk crowds
 js/vehicle.js       arcade car + flight physics
 js/carmesh.js       car model builder
 js/police.js        pursuit AI

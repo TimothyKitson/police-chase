@@ -1,5 +1,5 @@
 import * as THREE from '../vendor/three.module.js';
-import { CHEAT_COINS, resolveSpec } from './config.js';
+import { CHEAT_COINS, JOBS, resolveSpec } from './config.js';
 import { store } from './state.js';
 import { input } from './input.js';
 import { World } from './world.js';
@@ -7,6 +7,8 @@ import { Vehicle } from './vehicle.js';
 import { PoliceForce } from './police.js';
 import { Traffic } from './traffic.js';
 import { Hazards } from './hazards.js';
+import { Jobs } from './jobs.js';
+import { Pedestrians } from './pedestrians.js';
 import { Hud } from './hud.js';
 import { Minimap } from './minimap.js';
 import { UI } from './ui.js';
@@ -54,6 +56,8 @@ export class Game {
     this.world = new World(this.scene);
     this.traffic = new Traffic(this.scene, this.world);
     this.hazards = new Hazards(this.scene, this.world);
+    this.jobs = new Jobs(this.scene, this.world);
+    this.pedestrians = new Pedestrians(this.scene, this.world);
     this.police = new PoliceForce(this.scene, this.world);
     this.hud = new Hud();
     this.minimap = new Minimap(document.getElementById('minimap'), this.world);
@@ -74,6 +78,7 @@ export class Game {
     this.driftGrace = 0;
     this.waterTimer = 0;
     this.blockTimer = 12;
+    this.jobCooldown = 0;
     this.orbit = 0;
     this.lastTime = performance.now();
     this.pixelRatio = Math.min(devicePixelRatio, 1.75);
@@ -162,6 +167,27 @@ export class Game {
     this.camera.position.set(p.x + 12, 6, p.z + 12);
   }
 
+  unclipCamera() {
+    const cam = this.camera.position;
+    const car = this.player.pos;
+    for (const b of this.world.nearby(cam.x, cam.z)) {
+      if (cam.y > b.height + 0.4) continue;
+      if (cam.x < b.minX || cam.x > b.maxX || cam.z < b.minZ || cam.z > b.maxZ) continue;
+      const dx = car.x - cam.x;
+      const dz = car.z - cam.z;
+      for (let i = 1; i <= 10; i++) {
+        const t = i / 10;
+        const nx = cam.x + dx * t;
+        const nz = cam.z + dz * t;
+        if (nx < b.minX || nx > b.maxX || nz < b.minZ || nz > b.maxZ) {
+          cam.x = nx;
+          cam.z = nz;
+          break;
+        }
+      }
+    }
+  }
+
   snapCamera() {
     const f = this.player.forward(new THREE.Vector3());
     this.camera.position.set(
@@ -169,6 +195,7 @@ export class Game {
       this.player.pos.y + 3.6,
       this.player.pos.z - f.z * (9 + this.player.spec.length * 0.5)
     );
+    this.unclipCamera();
     this.camera.lookAt(this.player.pos.x + f.x * 9, this.player.pos.y + 1.5, this.player.pos.z + f.z * 9);
     this.shake = 0;
   }
@@ -223,6 +250,8 @@ export class Game {
     this.noHitTimer = 0;
     this.waterTimer = 0;
     this.blockTimer = 12;
+    this.jobCooldown = 1.5;
+    this.jobs.reset();
     this.mode = 'playing';
     sfx.engineOn = true;
     this.snapCamera();
@@ -263,6 +292,7 @@ export class Game {
   toMenu() {
     this.mode = 'menu';
     sfx.engineOn = false;
+    this.jobs.reset();
     this.police.clear();
     this.hud.hide();
     this.hud.clearCombo();
@@ -275,6 +305,8 @@ export class Game {
     this.mode = 'down';
     sfx.engineOn = false;
     input.releaseAll();
+    const lostCrew = this.jobs.fail();
+    this.jobCooldown = 2.5;
     store.recordRun({ distance: this.player.distance, coins: this.runCoins, heat: this.maxStars });
     this.hud.clearCombo();
     const copy = {
@@ -284,10 +316,11 @@ export class Game {
     }[kind] || ['WRECKED', 'Free rebuild, courtesy of the mod.'];
     this.ui.showDown({
       title: copy[0],
-      sub: copy[1],
+      sub: (lostCrew ? 'The crew is in cuffs. ' : '') + copy[1],
       runCoins: this.runCoins,
       distance: this.player.distance,
-      stars: this.maxStars
+      stars: this.maxStars,
+      delivered: this.jobs.delivered
     });
   }
 
@@ -375,6 +408,7 @@ export class Game {
     }
 
     this.traffic.update(dt, player.pos);
+    this.pedestrians.update(dt, player);
     const trafficHit = this.traffic.collide(player);
     if (trafficHit > 6 && this.impactCd <= 0) {
       player.takeDamage(Math.min(26, trafficHit * 0.42));
@@ -456,7 +490,9 @@ export class Game {
       this.heat = Math.max(this.heat, 0.9);
       this.maxStars = Math.max(this.maxStars, Math.floor(this.heat));
 
-      const boxed = pol.contact && player.speed < 9 && player.onGround;
+      const atDrop = this.jobs.state === 'toDrop' && this.jobs.target
+        && this.jobs.distanceTo(player.pos) < JOBS.dropRadius * 2.4;
+      const boxed = pol.contact && player.speed < 9 && player.onGround && !atDrop;
       this.bust = clamp(this.bust + (boxed ? dt * 34 : -dt * 22), 0, 100);
 
       this.bountyTimer += dt;
@@ -472,6 +508,33 @@ export class Game {
       this.heat = 0;
       this.bust = 0;
     }
+
+    this.jobCooldown = Math.max(0, this.jobCooldown - dt);
+    this.jobs.update(dt, player, {
+      heat: this.heat,
+      autoOffer: this.jobCooldown <= 0,
+      onOffer: () => {
+        this.hud.toast('new job · bank marked', 'mod');
+        sfx.blip(700, 0.12, 'triangle', 0.09);
+      },
+      onPickup: (crew) => {
+        this.hud.toast('crew aboard · ' + crew + ' up', 'gold');
+        sfx.cash();
+        if (!spec.noPolice) {
+          this.heat = Math.max(this.heat, 2);
+          this.police.spawnCooldown = 0;
+        }
+      },
+      onDeliver: (pay) => {
+        store.addCoins(pay.total);
+        this.runCoins += pay.total;
+        this.hud.toast('delivered +' + pay.total.toLocaleString(), 'gold');
+        if (pay.streakMul > 1) this.hud.toast('streak ×' + pay.streakMul, 'mod');
+        sfx.cash();
+        this.jobCooldown = 4;
+        if (!spec.noPolice) this.heat = Math.max(0.9, this.heat - 1.6);
+      }
+    });
 
     const sliding = player.drifting && player.speed > 9;
     if (sliding) {
@@ -512,9 +575,28 @@ export class Game {
       drifting: player.drifting,
       boosting: player.boosting,
       reverse: player.fwdSpeed < -0.5,
-      carName: store.selectedCar.name
+      carName: store.selectedCar.name,
+      job: {
+        label: this.jobs.label,
+        state: this.jobs.state,
+        crew: this.jobs.crew,
+        delivered: this.jobs.delivered,
+        distance: this.jobs.distanceTo(player.pos),
+        bearing: this.bearingTo(this.jobs.target)
+      }
     });
-    this.minimap.draw(player, this.police.units, this.traffic, this.hazards);
+    this.minimap.draw(player, this.police.units, this.traffic, this.hazards, this.jobs);
+  }
+
+  bearingTo(target) {
+    if (!target) return 0;
+    const dx = target.x - this.player.pos.x;
+    const dz = target.z - this.player.pos.z;
+    const world = Math.atan2(dx, dz);
+    let rel = world - this.player.yaw;
+    while (rel > Math.PI) rel -= Math.PI * 2;
+    while (rel < -Math.PI) rel += Math.PI * 2;
+    return Math.round((rel * 180 / Math.PI) - 90);
   }
 
   updateCamera(dt) {
@@ -551,6 +633,7 @@ export class Game {
 
     const lerp = mode === 'hood' ? 0.5 : 1 - Math.exp(-7.5 * dt);
     this.camera.position.lerp(this.camPos, lerp);
+    if (mode !== 'hood') this.unclipCamera();
 
     this.camLook.set(
       player.pos.x + f.x * 9,
@@ -600,6 +683,7 @@ export class Game {
     else if (this.mode === 'menu') {
       this.world.update(dt);
       this.traffic.update(dt, this.player.pos);
+      this.pedestrians.update(dt, this.player);
     }
 
     this.updateCamera(dt);

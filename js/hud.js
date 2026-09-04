@@ -19,6 +19,12 @@ export class Hud {
     this.comboWrap = $('comboWrap');
     this.comboText = $('comboText');
     this.comboValue = $('comboValue');
+    this.objective = $('objective');
+    this.objArrow = $('objArrow');
+    this.objLabel = $('objLabel');
+    this.objSub = $('objSub');
+    this.objCrew = $('objCrew');
+    this.jobCount = $('jobCount');
     this.canvas = $('speedoCanvas');
     this.ctx = this.canvas.getContext('2d');
     this.boostBlock.classList.remove('hidden');
@@ -72,6 +78,21 @@ export class Hud {
     this.chipBoost.classList.toggle('on', s.boosting);
 
     this.drawSpeedo(ratio, s.flying);
+    this.updateObjective(s.job);
+  }
+
+  updateObjective(job) {
+    if (!job) return;
+    this.objLabel.textContent = job.label;
+    this.objSub.textContent = job.state === 'idle'
+      ? 'stand by'
+      : (job.distance > 999 ? (job.distance / 1000).toFixed(2) + ' km' : Math.round(job.distance) + ' m');
+    this.objective.classList.toggle('drop', job.state === 'toDrop');
+    this.objective.classList.toggle('idle', job.state === 'idle');
+    this.objArrow.style.transform = `rotate(${job.bearing}deg)`;
+    this.objCrew.classList.toggle('hidden', !job.crew);
+    if (job.crew) this.objCrew.textContent = 'CREW ' + job.crew;
+    this.jobCount.textContent = job.delivered;
   }
 
   drawSpeedo(rawRatio, flying) {
