@@ -1,10 +1,12 @@
 import { Game } from './game.js';
+import { preloadModels } from './models.js';
 
 const canvas = document.getElementById('scene');
 const loading = document.getElementById('loading');
 
-function boot() {
+async function boot() {
   try {
+    await preloadModels();
     window.game = new Game(canvas);
     loading.classList.add('gone');
     setTimeout(() => loading.remove(), 500);

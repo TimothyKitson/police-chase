@@ -1,4 +1,5 @@
 import * as THREE from '../vendor/three.module.js';
+import { hasModel, instantiate, paintModel, wheelNodes } from './models.js';
 
 const boxCache = new Map();
 function box(w, h, d) {
@@ -109,8 +110,141 @@ const TRUCK_CABIN = [
   [0.500, 0.76, 1.14, 1.16]
 ];
 
+function buildFromModel(spec, slot, opts) {
+  const holder = instantiate(slot, { targetLength: spec.length });
+  if (!holder) return null;
+  const group = new THREE.Group();
+  group.add(holder);
+  const disposables = [];
+  const geometries = [];
+
+  paintModel(holder, spec.color);
+
+  const wheelSet = wheelNodes(holder);
+  const wheels = [];
+  if (wheelSet) {
+    const order = [['fl', true], ['fr', true], ['rl', false], ['rr', false]];
+    for (const [key, front] of order) {
+      const node = wheelSet[key];
+      if (!node) continue;
+      const holderGroup = new THREE.Group();
+      const spin = new THREE.Group();
+      node.parent.add(holderGroup);
+      holderGroup.position.copy(node.position);
+      node.position.set(0, 0, 0);
+      holderGroup.add(spin);
+      spin.add(node);
+      wheels.push({ holder: holderGroup, spin, front });
+    }
+  } else {
+    const R = spec.wheelSize;
+    const W = spec.width;
+    const L = spec.length;
+    const wheelWidth = Math.max(0.24, R * 0.6);
+    const tyreMat = new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.95 });
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: spec.wheelColor ?? 0x151a21, metalness: 0.8, roughness: 0.3
+    });
+    disposables.push(tyreMat, rimMat);
+    const tyre = wheelGeo(R, wheelWidth);
+    const rim = wheelGeo(R * 0.6, wheelWidth * 1.06);
+    for (const [sx, sz, front] of [[-1, 1, true], [1, 1, true], [-1, -1, false], [1, -1, false]]) {
+      const holderGroup = new THREE.Group();
+      holderGroup.position.set(sx * (W * 0.5 - wheelWidth * 0.18), R, sz * L * 0.33);
+      const spin = new THREE.Group();
+      spin.add(new THREE.Mesh(tyre, tyreMat));
+      spin.add(new THREE.Mesh(rim, rimMat));
+      holderGroup.add(spin);
+      group.add(holderGroup);
+      wheels.push({ holder: holderGroup, spin, front });
+    }
+  }
+
+  let lightbar = null;
+  if (opts.police) {
+    const met = bodyMetrics(spec);
+    const redMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 2 });
+    const blueMat = new THREE.MeshStandardMaterial({ color: 0x2255ff, emissive: 0x0033ff, emissiveIntensity: 2 });
+    disposables.push(redMat, blueMat);
+    const domeGeo = box(spec.width * 0.28, 0.13, 0.22);
+    const top = (holder.userData.size?.y ?? met.cabinTop) + 0.07;
+    const rr = new THREE.Mesh(domeGeo, redMat);
+    rr.position.set(-spec.width * 0.17, top, -spec.length * 0.03);
+    const bb = new THREE.Mesh(domeGeo, blueMat);
+    bb.position.set(spec.width * 0.17, top, -spec.length * 0.03);
+    group.add(rr, bb);
+    lightbar = { redMat, blueMat };
+  }
+
+  let glowMesh = null;
+  if (spec.glow) {
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: spec.glowColor ?? 0x37e6ff, map: glowTexture(), transparent: true, opacity: 0.6,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    });
+    const plane = new THREE.PlaneGeometry(spec.width * 2.6, spec.length * 1.9);
+    plane.rotateX(-Math.PI / 2);
+    disposables.push(glowMat);
+    geometries.push(plane);
+    glowMesh = new THREE.Mesh(plane, glowMat);
+    glowMesh.position.y = 0.04;
+    group.add(glowMesh);
+  }
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: spec.color, metalness: 0.55, roughness: 0.3 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: spec.accentColor });
+  const rimMat2 = new THREE.MeshStandardMaterial({ color: spec.wheelColor ?? 0x151a21 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, transparent: true, opacity: 0.72 });
+  disposables.push(bodyMat, trimMat, rimMat2, glassMat);
+
+  return {
+    group,
+    wheels,
+    lightbar,
+    glowMesh,
+    cabin: null,
+    fromModel: true,
+    height: holder.userData.size?.y ?? bodyMetrics(spec).cabinTop,
+    materials: { bodyMat, trimMat, rimMat: rimMat2, glassMat },
+    radius: Math.max(spec.length, spec.width) * 0.42,
+    dispose() {
+      disposables.forEach(m => m.dispose());
+      geometries.forEach(g => g.dispose());
+      holder.traverse(o => {
+        if (o.isMesh) {
+          o.geometry?.dispose();
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.forEach(m => m?.dispose());
+        }
+      });
+      group.clear();
+    }
+  };
+}
+
+export function bodyMetrics(spec) {
+  const truck = !!spec.truck;
+  const body = truck ? TRUCK_BODY : BODY;
+  const cabin = truck ? TRUCK_CABIN : CABIN;
+  const lift = spec.wheelSize * 0.42;
+  return {
+    lift,
+    truck,
+    bodyTop: lift + body.reduce((m, s) => Math.max(m, s[3]), 0),
+    cabinTop: lift + cabin.reduce((m, s) => Math.max(m, s[3]), 0),
+    noseTop: lift + body[body.length - 1][3],
+    cabinFrontZ: cabin[cabin.length - 1][0] * spec.length,
+    cabinRearZ: cabin[0][0] * spec.length
+  };
+}
+
 export function buildCar(spec, opts = {}) {
   const police = !!opts.police;
+  const slot = opts.slot || (police ? 'car_police' : 'car_' + (spec.id || 'cruiser'));
+  if (hasModel(slot)) {
+    const built = buildFromModel(spec, slot, opts);
+    if (built) return built;
+  }
   const L = spec.length, W = spec.width, R = spec.wheelSize;
   const group = new THREE.Group();
   const disposables = [];
@@ -296,6 +430,7 @@ export function buildCar(spec, opts = {}) {
   return {
     group,
     wheels,
+    cabin,
     height: lift + Math.max(bodyTop, cabinTop),
     lightbar,
     glowMesh,

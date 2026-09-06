@@ -36,7 +36,15 @@ run if you can keep them out of the walls.
 - <kbd>Space</kbd> — handbrake / drift (climb while flying)
 - <kbd>Shift</kbd> — boost
 - <kbd>E</kbd> — toggle fly · <kbd>R</kbd> — +1000 coins · <kbd>F</kbd> — reset car
-- <kbd>C</kbd> — camera · <kbd>M</kbd> — mute · <kbd>Esc</kbd> — pause
+- <kbd>C</kbd> — camera (chase → cinematic → bumper → first person) · <kbd>M</kbd> — mute · <kbd>Esc</kbd> — pause
+
+## Views
+
+Four cameras on <kbd>C</kbd>: **chase**, **cinematic** (pulled back), **bumper**, and
+**first person**. The cockpit view is a real interior — dashboard, dials, mirror, A-pillars,
+centre console — with a steering wheel that turns with your input, both hands on the rim, and a
+right hand that reaches for the shifter on every gear change. Gears step every 25 mph, and the
+engine note rises and drops with each one instead of flatlining at top speed.
 
 ## The map
 
@@ -64,6 +72,21 @@ Built to match the shape of the original's map rather than a tidy grid:
 - **Banks and safehouses** — ten of each, lit signs on pylons, spread across the map as the
   endpoints of every run.
 - **Pedestrians** — sidewalk crowds that scatter when you come through at speed.
+- **Road markings** — solid edge lines, dashed centre lines on side streets, double-yellow on
+  arterials, zebra crossings and stop lines at the big intersections.
+- **Kerbs and pavements** — raised kerb line around every block, not a painted edge.
+- **Traffic signals** — mast-arm signals on all four approaches of every arterial intersection,
+  cycling red/amber/green on an 11-second phase.
+- **Shopfronts** — lit retail units with awnings and signage along the ground floor of every
+  downtown and midtown building.
+
+## Swapping in your own 3D models
+
+Every vehicle is procedural geometry, but you can replace any of them with a `.glb` — from
+Tripo, Meshy, Blender, wherever — by dropping it in `models/` and flipping one flag. The loader
+auto-fits scale, seats the model on the ground, repaints the bodyshell to the car's colour, and
+binds wheel nodes so they spin and steer. **[MODELS.md](MODELS.md)** has the slot list, the
+orientation fixes, and a ready-to-paste generation prompt for each vehicle.
 
 ### What this isn't
 
@@ -108,6 +131,8 @@ js/traffic.js       civilian traffic on the lane network
 js/hazards.js       roadblocks and speed traps
 js/jobs.js          bank pickups, safehouse deliveries, payouts
 js/pedestrians.js   sidewalk crowds
+js/cockpit.js       first-person interior, animated wheel/hands/shifter
+js/models.js        optional .glb model loading (see MODELS.md)
 js/vehicle.js       arcade car + flight physics
 js/carmesh.js       car model builder
 js/police.js        pursuit AI
@@ -120,4 +145,6 @@ js/config.js        car specs, tuning schema, presets
 js/input.js         keyboard
 js/audio.js         WebAudio engine, siren, pickups
 vendor/three.module.js  three.js r160 (MIT)
+vendor/GLTFLoader.js    three.js GLTFLoader, for optional .glb models
+models/                 drop .glb files here to replace the built-in models
 ```

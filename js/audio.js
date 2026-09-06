@@ -4,6 +4,11 @@ class Sfx {
     this.ready = false;
     this.muted = false;
     this.engineOn = false;
+    this.hidden = false;
+    document.addEventListener('visibilitychange', () => {
+      this.hidden = document.visibilityState === 'hidden';
+      if (this.hidden) this.silence();
+    });
   }
 
   init() {
@@ -55,6 +60,20 @@ class Sfx {
     this.applyMute();
   }
 
+  setEngine(on) {
+    this.engineOn = !!on;
+    if (!on) this.silence();
+  }
+
+  silence() {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this.engineGain.gain.cancelScheduledValues(t);
+    this.engineGain.gain.setTargetAtTime(0, t, 0.06);
+    this.sirenGain.gain.cancelScheduledValues(t);
+    this.sirenGain.gain.setTargetAtTime(0, t, 0.08);
+  }
+
   setMuted(m) {
     this.muted = m;
     this.applyMute();
@@ -62,24 +81,33 @@ class Sfx {
 
   applyMute() {
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    if (this.muted) this.silence();
   }
 
-  engine(speedRatio, throttle, flying) {
+  engine(state) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const base = flying ? 120 : 58;
-    const f = base + speedRatio * (flying ? 180 : 210);
-    this.oscA.frequency.setTargetAtTime(f, t, 0.08);
-    this.oscB.frequency.setTargetAtTime(f * 1.51, t, 0.08);
-    this.engineFilter.frequency.setTargetAtTime(600 + speedRatio * 2200, t, 0.1);
-    const g = this.engineOn ? (0.045 + (throttle ? 0.07 : 0.015) + speedRatio * 0.05) : 0;
-    this.engineGain.gain.setTargetAtTime(g, t, 0.1);
+    if (!this.engineOn || this.hidden) {
+      this.engineGain.gain.setTargetAtTime(0, t, 0.06);
+      return;
+    }
+    const { speedRatio, throttle, flying, rpm, shifting } = state;
+    const base = flying ? 118 : 52;
+    const rev = flying ? 0.35 + speedRatio * 0.65 : rpm;
+    const f = base * (0.7 + rev * 1.15) + speedRatio * (flying ? 90 : 26);
+    const glide = shifting ? 0.05 : 0.09;
+    this.oscA.frequency.setTargetAtTime(f, t, glide);
+    this.oscB.frequency.setTargetAtTime(f * 1.51, t, glide);
+    this.engineFilter.frequency.setTargetAtTime(520 + rev * 1500 + speedRatio * 900, t, 0.1);
+    const load = throttle ? 0.075 : 0.018;
+    const dip = shifting ? 0.55 : 1;
+    this.engineGain.gain.setTargetAtTime((0.04 + load + rev * 0.035) * dip, t, 0.09);
   }
 
   sirenLevel(dist, dt) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const near = dist < 130 && this.engineOn;
+    const near = dist < 130 && this.engineOn && !this.hidden;
     const target = near ? Math.max(0, 0.05 * (1 - dist / 130)) : 0;
     this.sirenGain.gain.setTargetAtTime(target, t, 0.2);
     if (near) {

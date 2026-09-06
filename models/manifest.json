@@ -1,0 +1,129 @@
+{
+  "_readme": "Drop a .glb in this folder and flip its slot to enabled:true to replace the built-in procedural model. The game loads <slot>.glb unless you set \"file\". Set enabled:false (or delete the entry) to fall back to the procedural model. rotate is degrees [x,y,z] applied before auto-fit; scale is an extra multiplier after auto-fit; offset is metres [x,y,z]. Append ?models=auto to the URL to probe for every slot without editing this file. See MODELS.md.",
+  "car_cruiser": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_van": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_muscle": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_interceptor": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_bullion": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_admin": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_police": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "car_traffic": {
+    "enabled": false,
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ]
+  },
+  "cockpit": {
+    "rotate": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1,
+    "offset": [
+      0,
+      0,
+      0
+    ],
+    "enabled": false
+  }
+}

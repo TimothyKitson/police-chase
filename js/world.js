@@ -118,6 +118,54 @@ function warehouseTexture(rnd) {
   return { base, glow };
 }
 
+function storeTexture(rnd) {
+  const w = 192, h = 128;
+  const base = document.createElement('canvas');
+  base.width = w; base.height = h;
+  const glow = document.createElement('canvas');
+  glow.width = w; glow.height = h;
+  const bc = base.getContext('2d');
+  const gc = glow.getContext('2d');
+  bc.fillStyle = '#2f343d';
+  bc.fillRect(0, 0, w, h);
+  gc.fillStyle = '#000';
+  gc.fillRect(0, 0, w, h);
+
+  const units = 3;
+  const uw = w / units;
+  const signColours = ['#ff5a4d', '#4dd2ff', '#ffd24d', '#8b6bff', '#4dff9e'];
+  for (let u = 0; u < units; u++) {
+    const x = u * uw;
+    const open = rnd() < 0.6;
+    bc.fillStyle = '#1b1f26';
+    bc.fillRect(x + 4, 26, uw - 8, h - 44);
+    if (open) {
+      const warm = rnd() < 0.5;
+      const grd = bc.createLinearGradient(0, 26, 0, h - 18);
+      grd.addColorStop(0, warm ? '#fff0c8' : '#dfe9f2');
+      grd.addColorStop(1, warm ? '#d9a95e' : '#93a7b8');
+      bc.fillStyle = grd;
+      bc.fillRect(x + 7, 29, uw - 14, h - 50);
+      gc.fillStyle = rnd() < 0.5 ? '#ffd89a' : '#c9a978';
+      gc.fillRect(x + 7, 29, uw - 14, h - 50);
+      for (let k = 0; k < 3; k++) {
+        bc.fillStyle = 'rgba(30,25,20,.55)';
+        bc.fillRect(x + 12 + k * (uw - 24) / 3, h - 44, 6, 18);
+      }
+    }
+    const sign = signColours[Math.floor(rnd() * signColours.length)];
+    bc.fillStyle = sign;
+    bc.fillRect(x + 6, 8, uw - 12, 13);
+    gc.fillStyle = sign;
+    gc.fillRect(x + 6, 8, uw - 12, 13);
+    bc.fillStyle = '#151920';
+    bc.fillRect(x + 2, 22, uw - 4, 5);
+    bc.fillStyle = '#0f1319';
+    bc.fillRect(x, h - 16, uw, 16);
+  }
+  return { base, glow };
+}
+
 function makeMaterial(pair, tileU, tileV, intensity) {
   const map = new THREE.CanvasTexture(pair.base);
   const emis = new THREE.CanvasTexture(pair.glow);
@@ -460,13 +508,23 @@ export class World {
     scene.add(ground);
 
     const office = new MeshBuilder(true);
+    const store = new MeshBuilder(true);
     const warehouse = new MeshBuilder(true);
     const roofs = new MeshBuilder(false);
     const plazaB = new MeshBuilder(false);
     const tint = new THREE.Color();
 
-    const pushBuilding = (mb, x0, x1, z0, z1, h, c, tileU, tileV) => {
-      mb.boxSides(x0, x1, z0, z1, 0, h, c, tileU, tileV);
+    const SHOP_H = 3.7;
+    const pushBuilding = (mb, x0, x1, z0, z1, h, c, tileU, tileV, shops) => {
+      if (shops && h > SHOP_H + 4) {
+        store.boxSides(x0, x1, z0, z1, 0, SHOP_H, [1, 1, 1], 7.5, SHOP_H);
+        mb.boxSides(x0, x1, z0, z1, SHOP_H, h, c, tileU, tileV);
+        const ledge = 0.16;
+        roofs.top(x0 - ledge, x1 + ledge, z0 - ledge, z1 + ledge, SHOP_H, [c[0] * 0.5, c[1] * 0.5, c[2] * 0.54]);
+        roofs.boxSides(x0 - ledge, x1 + ledge, z0 - ledge, z1 + ledge, SHOP_H - 0.18, SHOP_H, [c[0] * 0.45, c[1] * 0.45, c[2] * 0.5], 1, 1);
+      } else {
+        mb.boxSides(x0, x1, z0, z1, 0, h, c, tileU, tileV);
+      }
       const rc = [c[0] * 0.42, c[1] * 0.44, c[2] * 0.48];
       roofs.top(x0, x1, z0, z1, h, rc);
       this.addBuilding({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, height: h });
@@ -488,8 +546,17 @@ export class World {
         const plazaCol = district === DISTRICT.PARK ? [0.16, 0.3, 0.18]
           : district === DISTRICT.INDUSTRIAL ? [0.19, 0.2, 0.22]
           : [0.2, 0.22, 0.26];
-        plazaB.top(b.x0, b.x1, b.z0, b.z1, 0.17, plazaCol);
-        plazaB.boxSides(b.x0, b.x1, b.z0, b.z1, 0, 0.17, [plazaCol[0] * 0.7, plazaCol[1] * 0.7, plazaCol[2] * 0.7], 1, 1);
+        const kerbCol = [0.42, 0.43, 0.45];
+        const kerbW = 0.38;
+        const kerbY = 0.21;
+        plazaB.top(b.x0 + kerbW, b.x1 - kerbW, b.z0 + kerbW, b.z1 - kerbW, 0.17, plazaCol);
+        plazaB.top(b.x0, b.x1, b.z0, b.z0 + kerbW, kerbY, kerbCol);
+        plazaB.top(b.x0, b.x1, b.z1 - kerbW, b.z1, kerbY, kerbCol);
+        plazaB.top(b.x0, b.x0 + kerbW, b.z0 + kerbW, b.z1 - kerbW, kerbY, kerbCol);
+        plazaB.top(b.x1 - kerbW, b.x1, b.z0 + kerbW, b.z1 - kerbW, kerbY, kerbCol);
+        plazaB.boxSides(b.x0, b.x1, b.z0, b.z1, 0, kerbY, kerbCol, 1, 1);
+        plazaB.boxSides(b.x0 + kerbW, b.x1 - kerbW, b.z0 + kerbW, b.z1 - kerbW, 0.17, kerbY,
+          [kerbCol[0] * 0.8, kerbCol[1] * 0.8, kerbCol[2] * 0.8], 1, 1);
 
         const block = { i, j, district, ...b, alley: null };
         this.blocks.push(block);
@@ -579,7 +646,7 @@ export class World {
               tint.setRGB(base * 0.98, base * 0.98, base * 1.04);
             }
             const c = [tint.r, tint.g, tint.b];
-            pushBuilding(mb, bx0, bx1, bz0, bz1, h, c, tileU, tileV);
+            pushBuilding(mb, bx0, bx1, bz0, bz1, h, c, tileU, tileV, district !== DISTRICT.INDUSTRIAL);
 
             if (district !== DISTRICT.INDUSTRIAL && rnd() < 0.7) {
               const pw = Math.min(bx1 - bx0, bz1 - bz0) * rand(0.18, 0.34);
@@ -603,7 +670,8 @@ export class World {
 
     const officeMat = makeMaterial(officeTexture(rnd), TILE_U, TILE_V, 1.05);
     const warehouseMat = makeMaterial(warehouseTexture(rnd), 26, 14, 1.15);
-    for (const [mb, mat] of [[office, officeMat], [warehouse, warehouseMat]]) {
+    const storeMat = makeMaterial(storeTexture(rnd), 7.5, SHOP_H, 0.85);
+    for (const [mb, mat] of [[office, officeMat], [warehouse, warehouseMat], [store, storeMat]]) {
       if (mb.empty()) continue;
       const mesh = new THREE.Mesh(mb.geometry(), mat);
       mesh.castShadow = true;
@@ -816,38 +884,180 @@ export class World {
   }
 
   addRoadPaint() {
-    const m = new THREE.Matrix4();
-    const dashGeo = new THREE.PlaneGeometry(0.44, 3.6);
-    dashGeo.rotateX(-Math.PI / 2);
-    const step = 9;
-    const capacity = (this.xs.length + this.zs.length) * Math.ceil(this.extent / step) + 16;
-    const dashes = new THREE.InstancedMesh(
-      dashGeo,
-      new THREE.MeshBasicMaterial({ color: 0xe4e2cc, transparent: true, opacity: 0.42 }),
-      capacity
-    );
-    const rot = new THREE.Matrix4().makeRotationY(Math.PI / 2);
-    let di = 0;
-    const lay = (lines, widths, axis) => {
-      for (let i = 0; i < lines.length; i++) {
-        if (widths[i] < 14) continue;
-        const line = lines[i];
-        for (let s = 0, n = Math.floor(this.extent / step); s < n; s++) {
-          const along = -this.half + s * step + step * 0.5;
-          const px = axis === 'z' ? line : along;
-          const pz = axis === 'z' ? along : line;
-          if (this.wetPoint(px, pz) || this.floorAt(px, pz) > 0.05) continue;
-          if (axis === 'z') m.identity().setPosition(line, 0.02, along);
-          else m.copy(rot).setPosition(along, 0.02, line);
-          dashes.setMatrixAt(di++, m);
+    const paint = new MeshBuilder(false);
+    const WHITE = [0.86, 0.86, 0.8];
+    const YELLOW = [0.6, 0.5, 0.17];
+    const Y = 0.028;
+    const { xs, zs, wx, wz } = this;
+
+    const dashed = (a0, a1, fixed, halfW, axis) => {
+      for (let a = a0 + 2; a < a1 - 4; a += 8) {
+        const b = Math.min(a + 3.4, a1 - 2);
+        if (axis === 'z') paint.top(fixed - halfW, fixed + halfW, a, b, Y, WHITE);
+        else paint.top(a, b, fixed - halfW, fixed + halfW, Y, WHITE);
+      }
+    };
+
+    const laneSet = (lineIdx, lines, widths, cross, crossW, axis) => {
+      const line = lines[lineIdx];
+      const w = widths[lineIdx];
+      for (let j = 0; j < cross.length - 1; j++) {
+        const wetA = axis === 'z' ? this.segmentWet('z', lineIdx, j) : this.segmentWet('x', j, lineIdx);
+        if (wetA) continue;
+        const a0 = cross[j] + crossW[j] / 2;
+        const a1 = cross[j + 1] - crossW[j + 1] / 2;
+        if (a1 - a0 < 6) continue;
+        const edge = w / 2 - 0.5;
+        if (axis === 'z') {
+          paint.top(line - edge - 0.09, line - edge + 0.09, a0, a1, Y, WHITE);
+          paint.top(line + edge - 0.09, line + edge + 0.09, a0, a1, Y, WHITE);
+        } else {
+          paint.top(a0, a1, line - edge - 0.09, line - edge + 0.09, Y, WHITE);
+          paint.top(a0, a1, line + edge - 0.09, line + edge + 0.09, Y, WHITE);
+        }
+        if (w >= 20) {
+          for (const off of [-0.22, 0.22]) {
+            if (axis === 'z') paint.top(line + off - 0.08, line + off + 0.08, a0, a1, Y, YELLOW);
+            else paint.top(a0, a1, line + off - 0.08, line + off + 0.08, Y, YELLOW);
+          }
+        } else {
+          dashed(a0, a1, line, 0.09, axis);
         }
       }
     };
-    lay(this.xs, this.wx, 'z');
-    lay(this.zs, this.wz, 'x');
-    dashes.count = di;
-    dashes.instanceMatrix.needsUpdate = true;
-    this.scene.add(dashes);
+
+    for (let i = 0; i < xs.length; i++) laneSet(i, xs, wx, zs, wz, 'z');
+    for (let j = 0; j < zs.length; j++) laneSet(j, zs, wz, xs, wx, 'x');
+
+    const stripes = (cx, cz, along, span, width) => {
+      const n = Math.max(4, Math.round(span / 1.3));
+      for (let k = 0; k < n; k++) {
+        const t = -span / 2 + (k + 0.25) * (span / n);
+        if (along === 'x') paint.top(cx + t, cx + t + span / n * 0.55, cz - width / 2, cz + width / 2, Y + 0.002, WHITE);
+        else paint.top(cx - width / 2, cx + width / 2, cz + t, cz + t + span / n * 0.55, Y + 0.002, WHITE);
+      }
+    };
+
+    for (let i = 0; i < xs.length; i++) {
+      for (let j = 0; j < zs.length; j++) {
+        if (wx[i] < 20 || wz[j] < 20) continue;
+        if (this.wetPoint(xs[i], zs[j])) continue;
+        const hx = wx[i] / 2, hz = wz[j] / 2;
+        stripes(xs[i], zs[j] - hz - 1.6, 'x', wx[i] - 1.4, 2.4);
+        stripes(xs[i], zs[j] + hz + 1.6, 'x', wx[i] - 1.4, 2.4);
+        stripes(xs[i] - hx - 1.6, zs[j], 'z', wz[j] - 1.4, 2.4);
+        stripes(xs[i] + hx + 1.6, zs[j], 'z', wz[j] - 1.4, 2.4);
+        paint.top(xs[i] - hx, xs[i] - 0.3, zs[j] - hz - 3.5, zs[j] - hz - 3.1, Y, WHITE);
+        paint.top(xs[i] + 0.3, xs[i] + hx, zs[j] + hz + 3.1, zs[j] + hz + 3.5, Y, WHITE);
+        paint.top(xs[i] - hx - 3.5, xs[i] - hx - 3.1, zs[j] + 0.3, zs[j] + hz, Y, WHITE);
+        paint.top(xs[i] + hx + 3.1, xs[i] + hx + 3.5, zs[j] - hz, zs[j] - 0.3, Y, WHITE);
+      }
+    }
+
+    const mesh = new THREE.Mesh(paint.geometry(), new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: 0.72, metalness: 0.02
+    }));
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.addTrafficLights();
+  }
+
+  addTrafficLights() {
+    const { xs, zs, wx, wz } = this;
+    const spots = [];
+    for (let i = 0; i < xs.length; i++) {
+      for (let j = 0; j < zs.length; j++) {
+        if (wx[i] < 20 || wz[j] < 20) continue;
+        if (this.wetPoint(xs[i], zs[j])) continue;
+        const hx = wx[i] / 2, hz = wz[j] / 2;
+        spots.push({ x: xs[i] - hx + 0.9, z: zs[j] - hz + 0.9, yaw: 0, axis: 0 });
+        spots.push({ x: xs[i] + hx - 0.9, z: zs[j] + hz - 0.9, yaw: Math.PI, axis: 0 });
+        spots.push({ x: xs[i] + hx - 0.9, z: zs[j] - hz + 0.9, yaw: -Math.PI / 2, axis: 1 });
+        spots.push({ x: xs[i] - hx + 0.9, z: zs[j] + hz - 0.9, yaw: Math.PI / 2, axis: 1 });
+      }
+    }
+    if (!spots.length) return;
+
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const axisY = new THREE.Vector3(0, 1, 0);
+    const p = new THREE.Vector3();
+    const one = new THREE.Vector3(1, 1, 1);
+    const metal = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.6, metalness: 0.5 });
+
+    const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.11, 0.14, 5.4, 8), metal, spots.length);
+    const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.09, 0.09, 2.6), metal, spots.length);
+    const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.92, 0.3), metal, spots.length);
+
+    this.signalMats = [0, 1].map(() => ({
+      red: new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff2010, emissiveIntensity: 2.4 }),
+      amber: new THREE.MeshStandardMaterial({ color: 0xffb020, emissive: 0xff9000, emissiveIntensity: 0.12 }),
+      green: new THREE.MeshStandardMaterial({ color: 0x35e07a, emissive: 0x18c05a, emissiveIntensity: 0.12 })
+    }));
+
+    const lensGeo = new THREE.SphereGeometry(0.11, 10, 8);
+    const byAxis = [spots.filter(s => s.axis === 0), spots.filter(s => s.axis === 1)];
+    this.signalLenses = [];
+    byAxis.forEach((list, ax) => {
+      const mats = this.signalMats[ax];
+      const lamps = {
+        red: new THREE.InstancedMesh(lensGeo, mats.red, list.length),
+        amber: new THREE.InstancedMesh(lensGeo, mats.amber, list.length),
+        green: new THREE.InstancedMesh(lensGeo, mats.green, list.length)
+      };
+      list.forEach((sp, idx) => {
+        const dx = Math.sin(sp.yaw), dz = Math.cos(sp.yaw);
+        const hx = sp.x + dx * 1.5, hz = sp.z + dz * 1.5;
+        [['red', 5.32], ['amber', 5.02], ['green', 4.72]].forEach(([key, y]) => {
+          q.setFromAxisAngle(axisY, sp.yaw);
+          p.set(hx + dx * 0.17, y, hz + dz * 0.17);
+          m.compose(p, q, one);
+          lamps[key].setMatrixAt(idx, m);
+        });
+      });
+      for (const key of ['red', 'amber', 'green']) {
+        lamps[key].instanceMatrix.needsUpdate = true;
+        this.scene.add(lamps[key]);
+      }
+      this.signalLenses.push(lamps);
+    });
+
+    spots.forEach((sp, idx) => {
+      q.setFromAxisAngle(axisY, sp.yaw);
+      p.set(sp.x, 2.7, sp.z);
+      m.compose(p, q, one);
+      pole.setMatrixAt(idx, m);
+      const dx = Math.sin(sp.yaw), dz = Math.cos(sp.yaw);
+      p.set(sp.x + dx * 0.75, 5.35, sp.z + dz * 0.75);
+      m.compose(p, q, one);
+      arm.setMatrixAt(idx, m);
+      p.set(sp.x + dx * 1.5, 5.0, sp.z + dz * 1.5);
+      m.compose(p, q, one);
+      head.setMatrixAt(idx, m);
+    });
+    for (const mesh of [pole, arm, head]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.castShadow = true;
+      this.scene.add(mesh);
+    }
+    this.signalClock = 0;
+    this.signalPhase = 0;
+  }
+
+  updateSignals(dt) {
+    if (!this.signalMats) return;
+    this.signalClock += dt;
+    const cycle = 11;
+    const t = this.signalClock % cycle;
+    const amber = t > cycle - 2.2;
+    if (t < dt) this.signalPhase ^= 1;
+    const set = (mats, green) => {
+      mats.red.emissiveIntensity = green ? 0.12 : 2.4;
+      mats.green.emissiveIntensity = green && !amber ? 2.4 : 0.12;
+      mats.amber.emissiveIntensity = green && amber ? 2.4 : 0.12;
+    };
+    set(this.signalMats[0], this.signalPhase === 0);
+    set(this.signalMats[1], this.signalPhase === 1);
   }
 
   addStreetlights() {
@@ -1143,6 +1353,7 @@ export class World {
 
   update(dt) {
     this.updateCoins(dt);
+    this.updateSignals(dt);
     if (this.waterTex) {
       this.waterTex.offset.x = (this.waterTex.offset.x + dt * 0.035) % 1;
       this.waterTex.offset.y = (this.waterTex.offset.y + dt * 0.021) % 1;

@@ -1,5 +1,5 @@
 import * as THREE from '../vendor/three.module.js';
-import { CHEAT_COINS, JOBS, resolveSpec } from './config.js';
+import { CHEAT_COINS, gearInfo, JOBS, resolveSpec } from './config.js';
 import { store } from './state.js';
 import { input } from './input.js';
 import { World } from './world.js';
@@ -9,13 +9,19 @@ import { Traffic } from './traffic.js';
 import { Hazards } from './hazards.js';
 import { Jobs } from './jobs.js';
 import { Pedestrians } from './pedestrians.js';
+import { Cockpit } from './cockpit.js';
 import { Hud } from './hud.js';
 import { Minimap } from './minimap.js';
 import { UI } from './ui.js';
 import { sfx } from './audio.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const CAM_MODES = ['chase', 'far', 'hood'];
+const CAM_MODES = [
+  { id: 'chase', name: 'chase' },
+  { id: 'far', name: 'cinematic' },
+  { id: 'hood', name: 'bumper' },
+  { id: 'cockpit', name: 'first person' }
+];
 
 export class Game {
   constructor(canvas) {
@@ -32,6 +38,12 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.5, 1400);
     this.camPos = new THREE.Vector3();
     this.camLook = new THREE.Vector3();
+    this.eyeWorld = new THREE.Vector3();
+    this.aimWorld = new THREE.Vector3();
+    this.upWorld = new THREE.Vector3(0, 1, 0);
+    this.upLocal = new THREE.Vector3();
+    this.camUp = new THREE.Vector3(0, 1, 0);
+    this.worldUp = new THREE.Vector3(0, 1, 0);
     this.camMode = 0;
     this.shake = 0;
 
@@ -76,6 +88,8 @@ export class Game {
     this.ramCd = 0;
     this.noHitTimer = 0;
     this.driftGrace = 0;
+    this.gear = 1;
+    this.shiftTimer = 0;
     this.waterTimer = 0;
     this.blockTimer = 12;
     this.jobCooldown = 0;
@@ -123,7 +137,8 @@ export class Game {
     input.onPress('KeyF', () => this.unstick());
     input.onPress('KeyC', () => {
       this.camMode = (this.camMode + 1) % CAM_MODES.length;
-      this.hud.toast('camera · ' + CAM_MODES[this.camMode]);
+      this.applyCamMode();
+      this.hud.toast('camera · ' + CAM_MODES[this.camMode].name);
     });
     input.onPress('KeyM', () => {
       store.muted = !store.muted;
@@ -157,7 +172,22 @@ export class Game {
     }
     this.player = new Vehicle(spec, {});
     this.scene.add(this.player.group);
+    if (this.cockpit) this.cockpit.dispose();
+    this.cockpit = new Cockpit(spec);
+    this.player.group.add(this.cockpit.group);
+    this.applyCamMode();
     return this.player;
+  }
+
+  get camId() { return CAM_MODES[this.camMode].id; }
+
+  applyCamMode() {
+    const first = this.camId === 'cockpit';
+    if (this.cockpit) this.cockpit.setVisible(first);
+    const cabin = this.player?.view?.cabin;
+    if (cabin) cabin.visible = !first;
+    this.camera.near = first ? 0.06 : 0.4;
+    this.camera.updateProjectionMatrix();
   }
 
   parkForMenu() {
@@ -253,7 +283,7 @@ export class Game {
     this.jobCooldown = 1.5;
     this.jobs.reset();
     this.mode = 'playing';
-    sfx.engineOn = true;
+    sfx.setEngine(true);
     this.snapCamera();
     this.ui.hideAll();
     this.hud.show();
@@ -264,7 +294,7 @@ export class Game {
   pause() {
     if (this.mode !== 'playing') return;
     this.mode = 'paused';
-    sfx.engineOn = false;
+    sfx.setEngine(false);
     input.releaseAll();
     this.ui.show('pause');
   }
@@ -284,14 +314,14 @@ export class Game {
       this.hud.toast('now driving ' + this.player.spec.name.toLowerCase(), 'mod');
     }
     this.mode = 'playing';
-    sfx.engineOn = true;
+    sfx.setEngine(true);
     this.ui.hideAll();
     this.hud.show();
   }
 
   toMenu() {
     this.mode = 'menu';
-    sfx.engineOn = false;
+    sfx.setEngine(false);
     this.jobs.reset();
     this.police.clear();
     this.hud.hide();
@@ -303,7 +333,7 @@ export class Game {
 
   goDown(kind) {
     this.mode = 'down';
-    sfx.engineOn = false;
+    sfx.setEngine(false);
     input.releaseAll();
     const lostCrew = this.jobs.fail();
     this.jobCooldown = 2.5;
@@ -339,7 +369,7 @@ export class Game {
     this.waterTimer = 0;
     this.blockTimer = 12;
     this.mode = 'playing';
-    sfx.engineOn = true;
+    sfx.setEngine(true);
     this.snapCamera();
     this.ui.hideAll();
     this.hud.show();
@@ -560,8 +590,29 @@ export class Game {
     if (player.damage >= 100) { this.goDown('wrecked'); return; }
     if (this.bust >= 100) { this.goDown('busted'); return; }
 
-    sfx.engine(clamp(player.speed / Math.max(10, spec.maxSpeed), 0, 1), input.throttle, player.flying);
+    const gears = gearInfo(player.speedKmh);
+    if (gears.gear !== this.gear) {
+      this.gear = gears.gear;
+      this.shiftTimer = 0.32;
+    }
+    this.shiftTimer = Math.max(0, this.shiftTimer - dt);
+    sfx.engine({
+      speedRatio: clamp(player.speed / Math.max(10, spec.maxSpeed), 0, 1),
+      throttle: input.throttle,
+      flying: player.flying,
+      rpm: gears.rpm,
+      shifting: this.shiftTimer > 0.16
+    });
     sfx.sirenLevel(pol.nearest, dt);
+
+    if (this.cockpit) {
+      this.cockpit.update(dt, {
+        steer: player.steerVisual / 0.42,
+        gear: gears.gear,
+        rpm: gears.rpm,
+        moving: Math.abs(player.speedKmh) > 4
+      });
+    }
 
     this.hud.update({
       coins: store.coins,
@@ -575,6 +626,7 @@ export class Game {
       drifting: player.drifting,
       boosting: player.boosting,
       reverse: player.fwdSpeed < -0.5,
+      gear: gears.gear,
       carName: store.selectedCar.name,
       job: {
         label: this.jobs.label,
@@ -616,8 +668,36 @@ export class Game {
     }
 
     const f = player.forward(new THREE.Vector3());
-    const mode = CAM_MODES[this.camMode];
+    const mode = this.camId;
     const spd = clamp(player.speed / Math.max(12, player.spec.maxSpeed), 0, 1);
+
+    if (mode === 'cockpit' && this.cockpit) {
+      player.group.updateMatrixWorld(true);
+      const m = player.group.matrixWorld;
+      this.eyeWorld.copy(this.cockpit.eye).applyMatrix4(m);
+      this.aimWorld.copy(this.cockpit.aim).applyMatrix4(m);
+      this.upLocal.copy(this.cockpit.eye);
+      this.upLocal.y += 1;
+      this.upWorld.copy(this.upLocal).applyMatrix4(m).sub(this.eyeWorld).normalize();
+      this.upWorld.lerp(this.worldUp, 0.45).normalize();
+      this.camUp.lerp(this.upWorld, 1 - Math.exp(-7 * dt)).normalize();
+      this.camera.position.copy(this.eyeWorld);
+      if (this.shake > 0.001) {
+        this.camera.position.x += (Math.random() - 0.5) * this.shake * 0.35;
+        this.camera.position.y += (Math.random() - 0.5) * this.shake * 0.3;
+        this.camera.position.z += (Math.random() - 0.5) * this.shake * 0.35;
+        this.shake *= Math.pow(0.0025, dt);
+      }
+      this.camera.up.copy(this.camUp);
+      this.camera.lookAt(this.aimWorld);
+      const fovTarget = 74 + spd * 8 + (player.boosting ? 4 : 0);
+      this.camera.fov += (fovTarget - this.camera.fov) * (1 - Math.exp(-4 * dt));
+      this.camera.updateProjectionMatrix();
+      this.sun.position.set(player.pos.x + 60, 95, player.pos.z + 45);
+      this.sunTarget.position.copy(player.pos);
+      return;
+    }
+    this.camera.up.set(0, 1, 0);
     let back = 8.5 + player.spec.length * 0.5 + spd * 5;
     let up = 3.3 + spd * 0.8;
     if (mode === 'far') { back *= 1.9; up *= 2.1; }

@@ -4,6 +4,16 @@ export const ADMIN_PRICE = 100000;
 export const CHEAT_COINS = 1000;
 export const COIN_VALUE = 25;
 
+export const GEAR_MPH = 25;
+export const KMH_PER_MPH = 1.609344;
+
+export function gearInfo(speedKmh) {
+  const mph = Math.abs(speedKmh) / KMH_PER_MPH;
+  const gear = Math.max(1, Math.min(24, 1 + Math.floor(mph / GEAR_MPH)));
+  const within = (mph % GEAR_MPH) / GEAR_MPH;
+  return { gear, mph, rpm: 0.2 + within * 0.8 };
+}
+
 export const JOBS = {
   banks: 10,
   safehouses: 10,
@@ -237,6 +247,7 @@ export const ADMIN_PRESETS = [
 ];
 
 export const POLICE_SPEC = {
+  id: 'police',
   color: 0xf2f4f8,
   accentColor: 0x0b1a3a,
   maxSpeed: 50,
